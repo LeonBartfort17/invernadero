@@ -1,0 +1,22 @@
+spring.application.name=invernadero
+
+# ── PostgreSQL ────────────────────────────────────────────────────────────
+spring.datasource.url=jdbc:postgresql://localhost:5432/invernadero_db
+spring.datasource.username=TU_USUARIO_POSTGRES
+spring.datasource.password=TU_PASSWORD_POSTGRES
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+# ── JPA / Hibernate ───────────────────────────────────────────────────────
+spring.jpa.hibernate.ddl-auto=none
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.format_sql=true
+spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+
+# ── OAuth2 Google ─────────────────────────────────────────────────────────
+spring.security.oauth2.client.registration.google.client-id=TU_CLIENT_ID
+spring.security.oauth2.client.registration.google.client-secret=TU_CLIENT_SECRET
+spring.security.oauth2.client.registration.google.scope=email,profile
+spring.security.oauth2.client.registration.google.redirect-uri=http://localhost:8080/login/oauth2/code/google
+
+# ── Sesión ────────────────────────────────────────────────────────────────
+server.servlet.session.timeout=8h

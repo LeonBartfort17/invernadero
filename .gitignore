@@ -1,0 +1,23 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Credenciales sensibles - NUNCA subir al repo
+src/main/resources/application.properties
+
+# Archivos del IDE
+.vscode/
+.idea/
+*.iml
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Selenium cache
+.cache/
+
+# Logs
+*.log

@@ -1,0 +1,135 @@
+name: CI - Invernadero
+
+# Se ejecuta en push a main y en pull requests
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  # ── JOB 1: Compilar y correr pruebas del Backend ──────────────────────
+  backend:
+    name: Backend - Compilar y Pruebas JUnit
+    runs-on: ubuntu-latest
+
+    services:
+      # Levanta PostgreSQL automáticamente para las pruebas
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: invernadero_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: hatsune
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: 📥 Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: ☕ Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: 🔑 Crear application.properties desde secretos de GitHub
+        run: |
+          cat > src/main/resources/application.properties << PROPS
+          spring.application.name=invernadero
+          spring.datasource.url=jdbc:postgresql://localhost:5432/invernadero_db
+          spring.datasource.username=postgres
+          spring.datasource.password=hatsune
+          spring.datasource.driver-class-name=org.postgresql.Driver
+          spring.jpa.hibernate.ddl-auto=none
+          spring.jpa.show-sql=false
+          spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+          spring.security.oauth2.client.registration.google.client-id=${{ secrets.GOOGLE_CLIENT_ID }}
+          spring.security.oauth2.client.registration.google.client-secret=${{ secrets.GOOGLE_CLIENT_SECRET }}
+          spring.security.oauth2.client.registration.google.scope=email,profile
+          spring.security.oauth2.client.registration.google.redirect-uri=http://localhost:8080/login/oauth2/code/google
+          server.servlet.session.timeout=8h
+          PROPS
+
+      - name: 🗄️ Crear tablas en la BD de prueba
+        run: |
+          sudo apt-get install -y postgresql-client
+          PGPASSWORD=hatsune psql -h localhost -U postgres -d invernadero_db << SQL
+          CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+          CREATE TABLE IF NOT EXISTS usuarios (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            nombre VARCHAR(255) NOT NULL,
+            email VARCHAR(255) UNIQUE NOT NULL,
+            password_hash VARCHAR(255),
+            rol VARCHAR(50) CHECK (rol IN ('ADMIN','OPERADOR','VIEWER')),
+            created_at TIMESTAMP DEFAULT NOW()
+          );
+          CREATE TABLE IF NOT EXISTS invernaderos (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            nombre VARCHAR(255) NOT NULL,
+            ubicacion VARCHAR(255),
+            area_m2 DOUBLE PRECISION,
+            tipo VARCHAR(50) CHECK (tipo IN ('CONVENCIONAL','HIDROPONICO','ACUAPONICO')),
+            activo BOOLEAN DEFAULT true,
+            created_at TIMESTAMP DEFAULT NOW(),
+            usuario_id UUID REFERENCES usuarios(id)
+          );
+          CREATE TABLE IF NOT EXISTS zonas (
+            id BIGSERIAL PRIMARY KEY,
+            nombre VARCHAR(255) NOT NULL,
+            tipo_cultivo VARCHAR(255),
+            area_total DOUBLE PRECISION,
+            created_at TIMESTAMP DEFAULT NOW(),
+            invernadero_id UUID NOT NULL REFERENCES invernaderos(id)
+          );
+          SQL
+
+      - name: 🔨 Compilar proyecto
+        run: ./gradlew compileJava --no-daemon
+
+      - name: ✅ Correr pruebas JUnit (sin Selenium)
+        run: ./gradlew test --tests "com.usco.invernadero.InvernaderoApplicationTests" --no-daemon
+
+      - name: 📊 Publicar reporte de pruebas
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reporte-backend
+          path: build/reports/tests/test/
+
+  # ── JOB 2: Compilar el Frontend ───────────────────────────────────────
+  frontend:
+    name: Frontend - Instalar y Compilar
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: 🟢 Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 📦 Instalar dependencias
+        working-directory: frontend
+        run: npm install
+
+      - name: 🔨 Compilar frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: 📊 Publicar build del frontend
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/dist/
