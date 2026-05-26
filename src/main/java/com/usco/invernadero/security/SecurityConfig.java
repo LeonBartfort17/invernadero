@@ -1,6 +1,7 @@
 package com.usco.invernadero.security;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -24,25 +25,28 @@ public class SecurityConfig {
     @Autowired
     private OAuthUsuarioService oAuthUsuarioService;
 
+    /**
+     * Este filterChain solo se crea si NO existe otro SecurityFilterChain.
+     * En pruebas, TestSecurityConfig registra su propio bean primero,
+     * por lo que este queda desactivado automáticamente.
+     */
     @Bean
+    @ConditionalOnMissingBean(SecurityFilterChain.class)
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf.disable())
 
             .authorizeHttpRequests(auth -> auth
-                // ── Rutas públicas ────────────────────────────────────────
                 .requestMatchers(
                     "/login", "/login/**",
                     "/oauth2/**",
-                    "/api/auth/me",        // ← permite verificar sesión sin estar autenticado
-                    "/api/auth/login",     // ← permite el form login
-                    "/api/auth/registro",  // ← permite registrarse
+                    "/api/auth/me",
+                    "/api/auth/login",
+                    "/api/auth/registro",
                     "/swagger-ui/**", "/v3/api-docs/**",
                     "/error"
                 ).permitAll()
-
-                // ── Rutas protegidas por rol ───────────────────────────────
                 .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET,    "/api/**").hasAnyRole("ADMIN", "OPERADOR", "VIEWER")
                 .requestMatchers(HttpMethod.POST,   "/api/**").hasAnyRole("ADMIN", "OPERADOR")
