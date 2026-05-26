@@ -25,11 +25,6 @@ public class SecurityConfig {
     @Autowired
     private OAuthUsuarioService oAuthUsuarioService;
 
-    /**
-     * Este filterChain solo se crea si NO existe otro SecurityFilterChain.
-     * En pruebas, TestSecurityConfig registra su propio bean primero,
-     * por lo que este queda desactivado automáticamente.
-     */
     @Bean
     @ConditionalOnMissingBean(SecurityFilterChain.class)
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -39,12 +34,14 @@ public class SecurityConfig {
 
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
-                    "/login", "/login/**",
+                    "/login",
+                    "/login/**",
                     "/oauth2/**",
                     "/api/auth/me",
                     "/api/auth/login",
                     "/api/auth/registro",
-                    "/swagger-ui/**", "/v3/api-docs/**",
+                    "/swagger-ui/**",
+                    "/v3/api-docs/**",
                     "/error"
                 ).permitAll()
                 .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
@@ -100,7 +97,6 @@ public class SecurityConfig {
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
-
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
