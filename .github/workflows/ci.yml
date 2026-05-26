@@ -1,6 +1,5 @@
 name: CI - Invernadero
 
-# Se ejecuta en push a main y en pull requests
 on:
   push:
     branches: [ main, develop ]
@@ -9,13 +8,12 @@ on:
 
 jobs:
 
-  # ── JOB 1: Compilar y correr pruebas del Backend ──────────────────────
+  # ── JOB 1: Backend ────────────────────────────────────────────────────
   backend:
     name: Backend - Compilar y Pruebas JUnit
     runs-on: ubuntu-latest
 
     services:
-      # Levanta PostgreSQL automáticamente para las pruebas
       postgres:
         image: postgres:15
         env:
@@ -39,24 +37,6 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-
-      - name: 🔑 Crear application.properties desde secretos de GitHub
-        run: |
-          cat > src/main/resources/application.properties << PROPS
-          spring.application.name=invernadero
-          spring.datasource.url=jdbc:postgresql://localhost:5432/invernadero_db
-          spring.datasource.username=postgres
-          spring.datasource.password=hatsune
-          spring.datasource.driver-class-name=org.postgresql.Driver
-          spring.jpa.hibernate.ddl-auto=none
-          spring.jpa.show-sql=false
-          spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
-          spring.security.oauth2.client.registration.google.client-id=${{ secrets.GOOGLE_CLIENT_ID }}
-          spring.security.oauth2.client.registration.google.client-secret=${{ secrets.GOOGLE_CLIENT_SECRET }}
-          spring.security.oauth2.client.registration.google.scope=email,profile
-          spring.security.oauth2.client.registration.google.redirect-uri=http://localhost:8080/login/oauth2/code/google
-          server.servlet.session.timeout=8h
-          PROPS
 
       - name: 🗄️ Crear tablas en la BD de prueba
         run: |
@@ -94,7 +74,9 @@ jobs:
       - name: 🔨 Compilar proyecto
         run: ./gradlew compileJava --no-daemon
 
-      - name: ✅ Correr pruebas JUnit (sin Selenium)
+      - name: ✅ Correr pruebas JUnit
+        # Usa src/test/resources/application.properties automáticamente
+        # que excluye OAuth2 para no fallar en CI
         run: ./gradlew test --tests "com.usco.invernadero.InvernaderoApplicationTests" --no-daemon
 
       - name: 📊 Publicar reporte de pruebas
@@ -104,7 +86,7 @@ jobs:
           name: reporte-backend
           path: build/reports/tests/test/
 
-  # ── JOB 2: Compilar el Frontend ───────────────────────────────────────
+  # ── JOB 2: Frontend ───────────────────────────────────────────────────
   frontend:
     name: Frontend - Instalar y Compilar
     runs-on: ubuntu-latest
@@ -128,7 +110,7 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      - name: 📊 Publicar build del frontend
+      - name: 📊 Publicar build
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
