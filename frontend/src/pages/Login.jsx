@@ -23,10 +23,13 @@ function Login({ t, idioma, onCambiarIdioma }) {
         credentials: 'include',
       });
 
-      if (res.ok || res.redirected) {
+      // El backend responde JSON (no redirect) para evitar errores de CORS
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success) {
         window.location.href = '/';
       } else {
-        setError(t.loginErrorCredenciales);
+        setError(data.error || t.loginErrorCredenciales);
       }
     } catch {
       setError(t.loginErrorConexion);
