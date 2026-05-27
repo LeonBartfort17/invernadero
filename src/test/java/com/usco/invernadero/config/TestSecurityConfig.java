@@ -2,15 +2,15 @@ package com.usco.invernadero.config;
 
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Configuración de seguridad para pruebas.
- * Al registrar SecurityFilterChain primero, desactiva el de SecurityConfig
- * gracias al @ConditionalOnMissingBean en ese archivo.
+ * Configuración de seguridad relajada para pruebas.
  */
 @TestConfiguration
+@Profile("test") // 👈 Solo se carga cuando el perfil "test" está activo
 public class TestSecurityConfig {
 
     @Bean

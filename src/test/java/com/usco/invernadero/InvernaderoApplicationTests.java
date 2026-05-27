@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest
-@ActiveProfiles("test")
+@ActiveProfiles("test") // 👈 Esto activa el perfil "test" y llama a TestSecurityConfig
 @Import(TestSecurityConfig.class)
 class InvernaderoApplicationTests {
 
