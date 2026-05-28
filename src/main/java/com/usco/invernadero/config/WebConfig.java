@@ -1,32 +1,27 @@
 package com.usco.invernadero.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-/**
- * Configuración global de CORS para toda la API.
- *
- * CORRECCIÓN: Antes solo ZonaController tenía @CrossOrigin("http://localhost:5173").
- * Los demás controladores (Cultivo, Sensor, Medicion, Usuario, Invernadero) no lo
- * tenían, causando errores CORS inconsistentes desde el frontend React.
- *
- * Esta clase centraliza la política en un único lugar.
- * Para producción: reemplazar los orígenes con la URL real del frontend.
- */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
+
+    @Value("${allowed.origin:http://localhost:5173}")
+    private String allowedOrigin;
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
                 .allowedOrigins(
-                        "http://localhost:5173",  // Vite dev server
-                        "http://localhost:3000"   // Alternativa CRA / Next.js
+                        "http://localhost:5173",
+                        "http://localhost:3000",
+                        allowedOrigin
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true)
-                .maxAge(3600); // Cache del preflight: 1 hora
+                .maxAge(3600);
     }
 }

@@ -1,6 +1,7 @@
 package com.usco.invernadero.security;
  
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -21,11 +22,15 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@Profile("!test") // 👈 Carga esta seguridad SIEMPRE, excepto en los tests
+@Profile("!test")
 public class SecurityConfig {
  
     @Autowired
     private OAuthUsuarioService oAuthUsuarioService;
+
+    // Lee ALLOWED_ORIGIN del entorno; por defecto localhost para desarrollo
+    @Value("${allowed.origin:http://localhost:5173}")
+    private String allowedOrigin;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -76,8 +81,8 @@ public class SecurityConfig {
             .oauth2Login(oauth -> oauth
                 .loginPage("/login")
                 .userInfoEndpoint(ui -> ui.userService(oAuthUsuarioService))
-                .defaultSuccessUrl("http://localhost:5173", true)
-                .failureUrl("http://localhost:5173/login?error=google")
+                .defaultSuccessUrl(allowedOrigin, true)
+                .failureUrl(allowedOrigin + "/login?error=google")
             )
             .logout(logout -> logout
                 .logoutUrl("/api/auth/logout")
@@ -98,7 +103,7 @@ public class SecurityConfig {
                         res.setCharacterEncoding("UTF-8");
                         res.getWriter().write("{\"error\":\"No autenticado\"}");
                     } else {
-                        res.sendRedirect("http://localhost:5173/login");
+                        res.sendRedirect(allowedOrigin + "/login");
                     }
                 })
             );
@@ -109,7 +114,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173"));
+        // Permite localhost en dev y la URL de producción (Vercel) automáticamente
+        config.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000", allowedOrigin));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
