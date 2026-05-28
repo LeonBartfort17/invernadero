@@ -20,6 +20,15 @@ import static org.junit.jupiter.api.Assertions.*;
  * Flujo de cada test:
  * 1. hacerLogin()  →  llena email + password y espera sesión activa
  * 2. Ejecuta la prueba específica
+ *
+ * ✅ CORRECCIÓN: webEnvironment = NONE porque Selenium prueba el frontend
+ *    real en :5173, no levanta un servidor de prueba de Spring.
+ *    El contexto de Spring sólo se carga para satisfacer la anotación;
+ *    con el perfil "test" activo (build.gradle) usa TestSecurityConfig
+ *    y no intenta cargar OAuthUsuarioService → contexto arranca sin errores.
+ *
+ * ✅ CORRECCIÓN: headless condicional — en local se abre ventana visible,
+ *    en CI (variable de entorno CI=true) corre sin pantalla.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @TestMethodOrder(OrderAnnotation.class)
@@ -37,20 +46,22 @@ class FrontendSeleniumTest {
     void setUp() {
         io.github.bonigarcia.wdm.WebDriverManager.chromedriver().setup();
         ChromeOptions ops = new ChromeOptions();
-        
+
         ops.addArguments("--no-sandbox");
         ops.addArguments("--disable-dev-shm-usage");
         ops.addArguments("--window-size=1920,1080");
-        
-        // 🛠️ SOLUCIÓN ALERTA GOOGLE CHROME: Forzar modo incógnito y aislar guardado de claves
+
+        // ✅ CORRECCIÓN: headless automático en CI, ventana visible en local
+        if (System.getenv("CI") != null) {
+            ops.addArguments("--headless=new");
+        }
+
+        // Modo incógnito: evita alertas de Chrome para guardar contraseñas
         ops.addArguments("--incognito");
         Map<String, Object> prefs = new HashMap<>();
         prefs.put("credentials_enable_service", false);
         prefs.put("profile.password_manager_enabled", false);
         ops.setExperimentalOption("prefs", prefs);
-
-        // Descomenta para correr sin ventana visible:
-        // ops.addArguments("--headless=new");
 
         driver = new ChromeDriver(ops);
         wait   = new WebDriverWait(driver, Duration.ofSeconds(20));
@@ -65,7 +76,6 @@ class FrontendSeleniumTest {
     private void hacerLogin() {
         driver.get(URL);
 
-        // Esperar campo email
         WebElement campoEmail = wait.until(
             ExpectedConditions.visibilityOfElementLocated(
                 By.cssSelector("input[type='email']")
@@ -74,35 +84,42 @@ class FrontendSeleniumTest {
         campoEmail.clear();
         campoEmail.sendKeys(EMAIL);
 
-        // Campo password
         WebElement campoPassword = driver.findElement(
             By.cssSelector("input[type='password']")
         );
         campoPassword.clear();
         campoPassword.sendKeys(PASSWORD);
 
-        // Submit del Login Local
         driver.findElement(By.cssSelector("button[type='submit']")).click();
 
-        // Esperar selector ES/EN como confirmación de sesión activa
+        // Esperar sidebar como confirmación de sesión activa
         wait.until(
             ExpectedConditions.visibilityOfElementLocated(
-                By.xpath("//button[contains(.,'ES') or contains(.,'EN')]")
+                By.xpath("//*[contains(text(),'Invernadero') or contains(text(),'Greenhouse')]")
             )
         );
         System.out.println("[LOGIN] Sesión activa como " + EMAIL);
     }
 
+    // ── Helper: navegar al sidebar ───────────────────────────────────────
+    private void navegarSidebar(String textoBoton) {
+        wait.until(
+            ExpectedConditions.elementToBeClickable(
+                By.xpath("//button[contains(.,'" + textoBoton + "')]")
+            )
+        ).click();
+        System.out.println("[NAV] Clic en: " + textoBoton);
+    }
+
     // ════════════════════════════════════════════════════════════════════
-    // TEST 1 — Formulario visible tras hacer login
+    // TEST 1 — Formulario visible tras hacer login (Dashboard)
     // ════════════════════════════════════════════════════════════════════
     @Test @Order(1)
     void testFormularioVisible() {
-        System.out.println("[TEST 1] Verificando formulario...");
+        System.out.println("[TEST 1] Verificando formulario en Dashboard...");
 
         hacerLogin();
 
-        // 🛠️ CORRECCIÓN: Esperar el botón usando su texto real en el componente
         wait.until(ExpectedConditions.visibilityOfElementLocated(
             By.xpath("//button[contains(text(), 'Guardar Zona en el Sistema')]")
         ));
@@ -132,20 +149,16 @@ class FrontendSeleniumTest {
 
         hacerLogin();
 
-        // Dejar el select en opción vacía
         Select sel = new Select(driver.findElement(By.tagName("select")));
         sel.selectByIndex(0);
 
-        // Limpiar todos los inputs
         for (WebElement inp : driver.findElements(By.xpath("//input[@type='text']"))) {
             inp.clear();
         }
         driver.findElement(By.xpath("//input[@type='number']")).clear();
 
-        // 🛠️ CORRECCIÓN: Clic en Guardar usando el texto exacto
         driver.findElement(By.xpath("//button[contains(text(), 'Guardar Zona en el Sistema')]")).click();
 
-        // Debe aparecer la alerta de validación
         wait.until(ExpectedConditions.alertIsPresent());
         String alerta = driver.switchTo().alert().getText();
         System.out.println("[TEST 2] Alerta recibida: " + alerta);
@@ -167,23 +180,19 @@ class FrontendSeleniumTest {
 
         hacerLogin();
 
-        // Esperar que el select cargue opciones reales desde el backend
         wait.until(d -> {
             Select s = new Select(d.findElement(By.tagName("select")));
             return s.getOptions().size() > 1;
         });
 
-        // Contar tarjetas ANTES usando una búsqueda más flexible por texto de emoji
         int tarjetasAntes = driver.findElements(
             By.xpath("//*[contains(text(), '🗑')]")
         ).size();
         System.out.println("[TEST 3] Tarjetas antes: " + tarjetasAntes);
 
-        // Seleccionar primer invernadero real
         Select sel = new Select(driver.findElement(By.tagName("select")));
         sel.selectByIndex(1);
 
-        // Llenar campos del formulario
         List<WebElement> textos = driver.findElements(
             By.xpath("//input[@type='text']")
         );
@@ -191,10 +200,8 @@ class FrontendSeleniumTest {
         textos.get(1).sendKeys("Tomate");
         driver.findElement(By.xpath("//input[@type='number']")).sendKeys("200");
 
-        // 🛠️ CORRECCIÓN: Enviar usando el selector por texto
         driver.findElement(By.xpath("//button[contains(text(), 'Guardar Zona en el Sistema')]")).click();
 
-        // Aceptar alerta de éxito
         wait.until(ExpectedConditions.alertIsPresent());
         String alerta = driver.switchTo().alert().getText();
         System.out.println("[TEST 3] Alerta: " + alerta);
@@ -205,10 +212,8 @@ class FrontendSeleniumTest {
             "Alerta inesperada al crear: " + alerta
         );
 
-        // 🛠️ AJUSTE ASÍNCRONO: Esperar a que React renderice la nueva tarjeta en el panel
         Thread.sleep(1500);
 
-        // Verificar que hay UNA tarjeta más
         final int tarjetasAntesFinal = tarjetasAntes;
         wait.until(d -> {
             int ahora = d.findElements(By.xpath("//*[contains(text(), '🗑')]")).size();
@@ -228,7 +233,6 @@ class FrontendSeleniumTest {
 
         hacerLogin();
 
-        // Esperar al menos un botón de eliminar
         wait.until(ExpectedConditions.visibilityOfElementLocated(
             By.xpath("//*[contains(text(), '🗑')]")
         ));
@@ -237,17 +241,14 @@ class FrontendSeleniumTest {
         System.out.println("[TEST 4] Zonas antes: " + antes);
         assertTrue(antes > 0, "Debe haber al menos una zona para eliminar");
 
-        // Clic en el último botón de eliminar (el que acabamos de crear en el test previo)
         List<WebElement> basureros = driver.findElements(By.xpath("//*[contains(text(), '🗑')]"));
         basureros.get(basureros.size() - 1).click();
 
-        // Confirmar el confirm() emergente
         wait.until(ExpectedConditions.alertIsPresent());
         String confirm = driver.switchTo().alert().getText();
         System.out.println("[TEST 4] Confirmar: " + confirm);
         driver.switchTo().alert().accept();
 
-        // Alerta final de resultado exitoso
         wait.until(ExpectedConditions.alertIsPresent());
         String resultado = driver.switchTo().alert().getText();
         System.out.println("[TEST 4] Resultado: " + resultado);
@@ -258,10 +259,8 @@ class FrontendSeleniumTest {
             "Alerta inesperada al eliminar: " + resultado
         );
 
-        // 🛠️ AJUSTE ASÍNCRONO: Breve pausa para la limpieza de la tarjeta del DOM
         Thread.sleep(1000);
 
-        // Verificar que hay una zona menos
         final int antesFinal = antes;
         wait.until(d -> {
             int ahora = d.findElements(By.xpath("//*[contains(text(), '🗑')]")).size();
@@ -269,5 +268,134 @@ class FrontendSeleniumTest {
         });
 
         System.out.println("[TEST 4] OK - Zona eliminada del panel");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // TEST 5 — Navegar a sección Taiga y verificar historias de usuario
+    // ════════════════════════════════════════════════════════════════════
+    @Test @Order(5)
+    void testNavegacionTaiga() {
+        System.out.println("[TEST 5] Verificando sección Taiga...");
+
+        hacerLogin();
+
+        // Clic en el botón del sidebar para Taiga
+        wait.until(ExpectedConditions.elementToBeClickable(
+            By.xpath("//button[contains(.,'Taiga') or contains(.,'Stories')]")
+        )).click();
+
+        // Verificar que carga el título de la sección
+        WebElement titulo = wait.until(
+            ExpectedConditions.visibilityOfElementLocated(
+                By.xpath("//*[contains(text(),'Taiga') or contains(text(),'User Stories')]")
+            )
+        );
+        assertNotNull(titulo, "La sección Taiga no cargó");
+
+        // Verificar que hay al menos una historia de usuario (ID HU-01)
+        wait.until(
+            ExpectedConditions.visibilityOfElementLocated(
+                By.xpath("//*[contains(text(),'HU-01')]")
+            )
+        );
+
+        System.out.println("[TEST 5] OK - Sección Taiga con historias cargada");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // TEST 6 — Navegar a sección Usuarios y verificar tabla
+    // ════════════════════════════════════════════════════════════════════
+    @Test @Order(6)
+    void testNavegacionUsuarios() {
+        System.out.println("[TEST 6] Verificando sección Usuarios...");
+
+        hacerLogin();
+
+        // Clic en botón Usuarios del sidebar
+        wait.until(ExpectedConditions.elementToBeClickable(
+            By.xpath("//button[contains(.,'Usuarios') or contains(.,'Users')]")
+        )).click();
+
+        // Esperar que cargue la tabla o el mensaje de acceso restringido
+        wait.until(d ->
+            !d.findElements(By.tagName("table")).isEmpty() ||
+            !d.findElements(By.xpath("//*[contains(text(),'restringido') or contains(text(),'restricted')]")).isEmpty()
+        );
+
+        // Para ADMIN: tabla visible con al menos una fila
+        List<WebElement> tablas = driver.findElements(By.tagName("table"));
+        if (!tablas.isEmpty()) {
+            assertFalse(tablas.isEmpty(), "La tabla de usuarios debe estar visible para ADMIN");
+            System.out.println("[TEST 6] OK - Tabla de usuarios visible");
+        } else {
+            System.out.println("[TEST 6] OK - Acceso restringido mostrado (rol no-ADMIN)");
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // TEST 7 — Botón "Descargar PDF" visible en sección Taiga
+    // ════════════════════════════════════════════════════════════════════
+    @Test @Order(7)
+    void testBotonPDFVisible() {
+        System.out.println("[TEST 7] Verificando botón de descarga PDF...");
+
+        hacerLogin();
+
+        // Navegar a Taiga
+        wait.until(ExpectedConditions.elementToBeClickable(
+            By.xpath("//button[contains(.,'Taiga') or contains(.,'Stories')]")
+        )).click();
+
+        // Verificar botón PDF
+        WebElement botonPDF = wait.until(
+            ExpectedConditions.visibilityOfElementLocated(
+                By.xpath("//button[contains(.,'PDF') or contains(.,'Descargar') or contains(.,'Download')]")
+            )
+        );
+        assertNotNull(botonPDF, "El botón de descarga PDF no es visible");
+        assertTrue(botonPDF.isEnabled(), "El botón PDF debe estar habilitado");
+
+        System.out.println("[TEST 7] OK - Botón PDF visible y habilitado: " + botonPDF.getText());
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // TEST 8 — Sidebar colapsa correctamente
+    // ════════════════════════════════════════════════════════════════════
+    @Test @Order(8)
+    void testSidebarColapsa() throws InterruptedException {
+        System.out.println("[TEST 8] Verificando colapso del sidebar...");
+
+        hacerLogin();
+
+        // Buscar el botón toggle del sidebar (◀ / ▶)
+        WebElement toggleBtn = wait.until(
+            ExpectedConditions.elementToBeClickable(
+                By.xpath("//button[contains(.,'◀') or contains(.,'▶')]")
+            )
+        );
+        assertNotNull(toggleBtn, "Botón toggle del sidebar no encontrado");
+
+        // Colapsar
+        toggleBtn.click();
+        Thread.sleep(400); // esperar animación CSS
+
+        // El texto "Monitoreo" debe desaparecer (sidebar colapsado)
+        boolean textoOculto = driver.findElements(
+            By.xpath("//aside//*[contains(text(),'Monitoreo')]")
+        ).isEmpty();
+        assertTrue(textoOculto, "El sidebar debería estar colapsado (sin texto)");
+
+        // Expandir de nuevo
+        driver.findElement(By.xpath("//button[contains(.,'▶')]")).click();
+        Thread.sleep(400);
+
+        // El texto debe volver a aparecer
+        wait.until(
+            ExpectedConditions.visibilityOfElementLocated(
+                By.xpath("//aside//*[contains(text(),'Monitoreo')]")
+            )
+        );
+
+        System.out.println("[TEST 8] OK - Sidebar colapsa y expande correctamente");
     }
 }

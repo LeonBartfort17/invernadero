@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import Login from './pages/Login';
+import TaigaPage from './pages/TaigaPage';
+import UsuariosPage from './pages/UsuariosPage';
+import Sidebar from './components/Sidebar';
 import es from './i18n/es';
 import en from './i18n/en';
 import { detectarIdioma, guardarIdiomaManual } from './i18n/detectarIdioma';
@@ -7,20 +10,12 @@ import { detectarIdioma, guardarIdiomaManual } from './i18n/detectarIdioma';
 const IDIOMAS = { es, en };
 
 const PERMISOS = {
-  ADMIN:    { puedeCrear: true,  puedeEliminar: true  },
-  OPERADOR: { puedeCrear: true,  puedeEliminar: true  },
-  VIEWER:   { puedeCrear: false, puedeEliminar: false },
+  ADMIN:    { puedeCrear: true,  puedeEliminar: true,  verUsuarios: true  },
+  OPERADOR: { puedeCrear: true,  puedeEliminar: true,  verUsuarios: false },
+  VIEWER:   { puedeCrear: false, puedeEliminar: false, verUsuarios: false },
 };
 
-function App() {
-  const [usuario, setUsuario]           = useState(null);
-  const [verificando, setVerificando]   = useState(true);
-
-  // Detecta automáticamente el idioma del navegador,
-  // pero respeta la elección manual del usuario si la hizo antes
-  const [idioma, setIdioma] = useState(detectarIdioma);
-  const t = IDIOMAS[idioma];
-
+function Dashboard({ usuario, t, idioma }) {
   const [zonas, setZonas]               = useState([]);
   const [invernaderos, setInvernaderos] = useState([]);
   const [cargando, setCargando]         = useState(true);
@@ -29,47 +24,24 @@ function App() {
   const [areaTotal, setAreaTotal]       = useState('');
   const [invernaderoId, setInvernaderoId] = useState('');
 
-  const headers = { 'Content-Type': 'application/json', 'Accept-Language': idioma };
-
-  // Cuando el usuario cambia idioma manualmente → guardar como elección explícita
-  const cambiarIdioma = (nuevoIdioma) => {
-    setIdioma(nuevoIdioma);
-    guardarIdiomaManual(nuevoIdioma); // distinto a la detección automática
-  };
-
-  // ── Verificar sesión al cargar ────────────────────────────────────────
-  useEffect(() => {
-    fetch('http://localhost:8080/api/auth/me', {
-      credentials: 'include',
-      headers: { 'Accept-Language': idioma }
-    })
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => { setUsuario(data); setVerificando(false); })
-      .catch(() => setVerificando(false));
-  }, []);
-
-  useEffect(() => {
-    if (usuario) { cargarZonas(); cargarInvernaderos(); }
-  }, [usuario, idioma]);
+  const permisos = PERMISOS[usuario.rol] || PERMISOS.VIEWER;
+  const headers  = { 'Content-Type': 'application/json', 'Accept-Language': idioma };
 
   const cargarZonas = () => {
     fetch('http://localhost:8080/api/zonas', { credentials: 'include', headers })
-      .then((r) => r.json())
-      .then((d) => { setZonas(Array.isArray(d) ? d : []); setCargando(false); })
+      .then(r => r.json())
+      .then(d => { setZonas(Array.isArray(d) ? d : []); setCargando(false); })
       .catch(() => setCargando(false));
   };
 
   const cargarInvernaderos = () => {
     fetch('http://localhost:8080/api/invernaderos', { credentials: 'include', headers })
-      .then((r) => r.json())
-      .then((d) => setInvernaderos(Array.isArray(d) ? d : []))
+      .then(r => r.json())
+      .then(d => setInvernaderos(Array.isArray(d) ? d : []))
       .catch(console.error);
   };
 
-  const cerrarSesion = () => {
-    fetch('http://localhost:8080/api/auth/logout', { method: 'POST', credentials: 'include' })
-      .then(() => setUsuario(null));
-  };
+  useEffect(() => { cargarZonas(); cargarInvernaderos(); }, [idioma]);
 
   const manejarEnvio = (e) => {
     e.preventDefault();
@@ -80,7 +52,7 @@ function App() {
       method: 'POST', credentials: 'include', headers,
       body: JSON.stringify({ nombre, tipo_cultivo: tipoCultivo, area_total: parseFloat(areaTotal) }),
     })
-      .then((r) => r.text()).then((msg) => {
+      .then(r => r.text()).then(msg => {
         alert(msg);
         setNombre(''); setTipoCultivo(''); setAreaTotal(''); setInvernaderoId('');
         cargarZonas();
@@ -90,114 +62,61 @@ function App() {
   const eliminarZona = (id, nombreZona) => {
     if (!confirm(t.confirmarEliminar(nombreZona))) return;
     fetch(`http://localhost:8080/api/zonas/${id}`, { method: 'DELETE', credentials: 'include', headers })
-      .then((r) => r.text()).then((msg) => { alert(msg); cargarZonas(); });
+      .then(r => r.text()).then(msg => { alert(msg); cargarZonas(); });
   };
 
-  // ── Pantalla de carga ─────────────────────────────────────────────────
-  if (verificando) return (
-    <div style={{
-      display: 'flex', justifyContent: 'center', alignItems: 'center',
-      minHeight: '100vh', fontFamily: 'Segoe UI, sans-serif', backgroundColor: '#f4f7f6'
-    }}>
-      <p style={{ color: '#7f8c8d', fontSize: '16px' }}>🔄 {t.verificandoSesion}</p>
-    </div>
-  );
-
-  // ── Pantalla de login ─────────────────────────────────────────────────
-  if (!usuario) return (
-    <Login t={t} idioma={idioma} onCambiarIdioma={cambiarIdioma} />
-  );
-
-  const permisos = PERMISOS[usuario.rol] || PERMISOS.VIEWER;
-  const inputStyle = { width: '95%', padding: '8px', borderRadius: '6px', border: '1px solid #ccc' };
-  const labelStyle = { display: 'block', fontWeight: 'bold', marginBottom: '4px' };
-  const colorRol = { ADMIN: '#e74c3c', OPERADOR: '#f39c12', VIEWER: '#3498db' };
+  const inputStyle = { width: '95%', padding: '9px', borderRadius: '8px', border: '1.5px solid #d4e8d4', fontSize: '14px', outline: 'none' };
+  const labelStyle = { display: 'block', fontWeight: '700', marginBottom: '5px', color: '#1a2e1a', fontSize: '13px' };
 
   return (
-    <div style={{ padding: '30px', fontFamily: 'Segoe UI, sans-serif', backgroundColor: '#f4f7f6', minHeight: '100vh' }}>
+    <div style={{ padding: '32px', fontFamily: "'Segoe UI', sans-serif" }}>
 
-      {/* ── Barra superior ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-
-        {/* Selector de idioma */}
-        <div>
-          <span style={{ marginRight: '8px', fontWeight: 'bold', color: '#555', fontSize: '13px' }}>
-            🌐 {t.idioma}:
-          </span>
-          {['es', 'en'].map((l) => (
-            <button key={l} onClick={() => cambiarIdioma(l)} style={{
-              marginRight: '6px', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer',
-              backgroundColor: idioma === l ? '#2ecc71' : '#e2e8f0',
-              color: idioma === l ? 'white' : '#4a5568',
-              border: 'none', fontWeight: 'bold', fontSize: '12px'
-            }}>
-              {l === 'es' ? '🇨🇴 ES' : '🇺🇸 EN'}
-            </button>
-          ))}
-        </div>
-
-        {/* Usuario + rol + logout */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '14px', color: '#4a5568' }}>
-            👤 <strong>{usuario.nombre}</strong>
-          </span>
-          <span style={{
-            padding: '3px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold',
-            backgroundColor: colorRol[usuario.rol] || '#95a5a6', color: 'white'
-          }}>
-            {usuario.rol}
-          </span>
-          <button onClick={cerrarSesion} style={{
-            padding: '6px 14px', borderRadius: '6px', backgroundColor: '#e74c3c',
-            color: 'white', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px'
-          }}>
-            🚪 {t.cerrarSesion}
-          </button>
-        </div>
+      {/* Header */}
+      <div style={{ marginBottom: '32px', textAlign: 'center' }}>
+        <h1 style={{ color: '#1a2e1a', margin: '0 0 6px', fontSize: '28px', fontWeight: '800' }}>
+          🌿 {t.titulo}
+        </h1>
+        <p style={{ color: '#6b9a6b', margin: 0, fontSize: '14px' }}>{t.subtitulo}</p>
       </div>
 
-      {/* ── Header ── */}
-      <header style={{ marginBottom: '30px', textAlign: 'center' }}>
-        <h1 style={{ color: '#2c3e50', margin: 0 }}>🌿 {t.titulo}</h1>
-        <p style={{ color: '#7f8c8d' }}>{t.subtitulo}</p>
-      </header>
-
-      {/* ── Formulario (solo ADMIN y OPERADOR) ── */}
+      {/* Formulario */}
       {permisos.puedeCrear && (
         <div style={{
-          backgroundColor: '#fff', padding: '20px', borderRadius: '12px',
-          maxWidth: '500px', margin: '0 auto 40px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)'
+          backgroundColor: '#fff', padding: '24px', borderRadius: '16px',
+          maxWidth: '520px', margin: '0 auto 40px',
+          boxShadow: '0 4px 20px rgba(26,46,26,0.1)',
+          border: '1.5px solid #e0f0e0',
         }}>
-          <h3 style={{ marginTop: 0, color: '#2c3e50' }}>➕ {t.registrarZona}</h3>
-          <form onSubmit={manejarEnvio} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <h3 style={{ marginTop: 0, color: '#1a2e1a', fontWeight: '800' }}>➕ {t.registrarZona}</h3>
+          <form onSubmit={manejarEnvio} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
               <label style={labelStyle}>{t.invernadero}:</label>
-              <select value={invernaderoId} onChange={(e) => setInvernaderoId(e.target.value)}
-                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #ccc' }}>
+              <select value={invernaderoId} onChange={e => setInvernaderoId(e.target.value)}
+                style={{ ...inputStyle, width: '100%', backgroundColor: '#fff' }}>
                 <option value="">{t.seleccionaInvernadero}</option>
-                {invernaderos.map((inv) => (
+                {invernaderos.map(inv => (
                   <option key={inv.id} value={inv.id}>{inv.nombre}</option>
                 ))}
               </select>
             </div>
             <div>
               <label style={labelStyle}>{t.nombre}:</label>
-              <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)}
+              <input type="text" value={nombre} onChange={e => setNombre(e.target.value)}
                 placeholder={t.nombrePlaceholder} style={inputStyle} />
             </div>
             <div>
               <label style={labelStyle}>{t.tipoCultivo}:</label>
-              <input type="text" value={tipoCultivo} onChange={(e) => setTipoCultivo(e.target.value)}
+              <input type="text" value={tipoCultivo} onChange={e => setTipoCultivo(e.target.value)}
                 placeholder={t.tipoPlaceholder} style={inputStyle} />
             </div>
             <div>
               <label style={labelStyle}>{t.area}:</label>
-              <input type="number" value={areaTotal} onChange={(e) => setAreaTotal(e.target.value)}
+              <input type="number" value={areaTotal} onChange={e => setAreaTotal(e.target.value)}
                 placeholder={t.areaPlaceholder} style={inputStyle} />
             </div>
             <button type="submit" style={{
-              backgroundColor: '#2ecc71', color: 'white', border: 'none',
-              padding: '10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer'
+              backgroundColor: '#1a2e1a', color: '#4ade80', border: 'none',
+              padding: '12px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', fontSize: '14px',
             }}>
               {t.guardar}
             </button>
@@ -205,38 +124,37 @@ function App() {
         </div>
       )}
 
-      <hr style={{ border: '0', borderTop: '1px solid #e2e8f0', margin: '40px 0' }} />
+      <hr style={{ border: '0', borderTop: '1px solid #e0f0e0', margin: '0 0 32px' }} />
 
-      {/* ── Lista de zonas ── */}
+      {/* Lista de zonas */}
       {cargando ? (
-        <div style={{ textAlign: 'center', fontSize: '18px', color: '#34495e' }}>
-          🔄 {t.cargando}
-        </div>
+        <div style={{ textAlign: 'center', fontSize: '18px', color: '#6b9a6b' }}>🔄 {t.cargando}</div>
       ) : zonas.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#7f8c8d' }}>{t.sinZonas}</p>
+        <p style={{ textAlign: 'center', color: '#9ab89a' }}>{t.sinZonas}</p>
       ) : (
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-          gap: '20px', maxWidth: '1200px', margin: '0 auto'
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+          gap: '18px', maxWidth: '1100px', margin: '0 auto',
         }}>
-          {zonas.map((zona) => (
+          {zonas.map(zona => (
             <div key={zona.id} style={{
-              border: '1px solid #e2e8f0', borderRadius: '12px', padding: '25px',
-              backgroundColor: '#fff', boxShadow: '0 4px 6px rgba(0,0,0,0.05)'
+              border: '1.5px solid #e0f0e0', borderRadius: '14px', padding: '22px',
+              backgroundColor: '#fff', boxShadow: '0 3px 12px rgba(26,46,26,0.07)',
+              borderLeft: '4px solid #4ade80',
             }}>
-              <h3 style={{ margin: '0 0 15px', color: '#2c3e50', borderBottom: '1px solid #f0f0f0', paddingBottom: '10px' }}>
+              <h3 style={{ margin: '0 0 14px', color: '#1a2e1a', fontWeight: '800', paddingBottom: '10px', borderBottom: '1px solid #f0f7f0' }}>
                 📍 {zona.nombre}
               </h3>
-              <div style={{ lineHeight: '1.8', color: '#4a5568', fontSize: '15px' }}>
-                <p style={{ margin: '6px 0' }}><strong>{t.tipoCultivoLabel}:</strong> {zona.tipo_cultivo || t.noAsignado}</p>
-                <p style={{ margin: '6px 0' }}><strong>{t.areaTotalLabel}:</strong> {zona.area_total ? `${zona.area_total} m²` : t.na}</p>
-                <p style={{ margin: '6px 0' }}><strong>{t.invernaderoLabel}:</strong> {zona.invernadero?.nombre || t.na}</p>
+              <div style={{ lineHeight: '1.9', color: '#4a6a4a', fontSize: '14px' }}>
+                <p style={{ margin: '4px 0' }}><strong style={{ color: '#1a2e1a' }}>{t.tipoCultivoLabel}:</strong> {zona.tipo_cultivo || t.noAsignado}</p>
+                <p style={{ margin: '4px 0' }}><strong style={{ color: '#1a2e1a' }}>{t.areaTotalLabel}:</strong> {zona.area_total ? `${zona.area_total} m²` : t.na}</p>
+                <p style={{ margin: '4px 0' }}><strong style={{ color: '#1a2e1a' }}>{t.invernaderoLabel}:</strong> {zona.invernadero?.nombre || t.na}</p>
               </div>
               {permisos.puedeEliminar && (
                 <button onClick={() => eliminarZona(zona.id, zona.nombre)} style={{
-                  marginTop: '15px', backgroundColor: '#e74c3c', color: 'white',
-                  border: 'none', padding: '8px 14px', borderRadius: '6px',
-                  fontWeight: 'bold', cursor: 'pointer', width: '100%'
+                  marginTop: '14px', backgroundColor: '#fee2e2', color: '#dc2626',
+                  border: 'none', padding: '9px 14px', borderRadius: '8px',
+                  fontWeight: '800', cursor: 'pointer', width: '100%', fontSize: '13px',
                 }}>
                   🗑️ {t.eliminarZona}
                 </button>
@@ -245,6 +163,92 @@ function App() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function App() {
+  const [usuario, setUsuario]         = useState(null);
+  const [verificando, setVerificando] = useState(true);
+  const [idioma, setIdioma]           = useState(detectarIdioma);
+  const [seccion, setSeccion]         = useState('dashboard');
+  const t = IDIOMAS[idioma];
+
+  const cambiarIdioma = (l) => { setIdioma(l); guardarIdiomaManual(l); };
+
+  useEffect(() => {
+    fetch('http://localhost:8080/api/auth/me', {
+      credentials: 'include', headers: { 'Accept-Language': idioma }
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { setUsuario(data); setVerificando(false); })
+      .catch(() => setVerificando(false));
+  }, []);
+
+  const cerrarSesion = () => {
+    fetch('http://localhost:8080/api/auth/logout', { method: 'POST', credentials: 'include' })
+      .then(() => setUsuario(null));
+  };
+
+  if (verificando) return (
+    <div style={{
+      display: 'flex', justifyContent: 'center', alignItems: 'center',
+      minHeight: '100vh', fontFamily: 'Segoe UI, sans-serif', backgroundColor: '#f4f9f4',
+    }}>
+      <p style={{ color: '#6b9a6b', fontSize: '16px' }}>🔄 {t.verificandoSesion}</p>
+    </div>
+  );
+
+  if (!usuario) return <Login t={t} idioma={idioma} onCambiarIdioma={cambiarIdioma} />;
+
+  const permisos = PERMISOS[usuario.rol] || PERMISOS.VIEWER;
+  const SIDEBAR_W = 220; // approximate expanded width
+
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f4f9f4', fontFamily: "'Segoe UI', sans-serif" }}>
+
+      <Sidebar
+        seccion={seccion}
+        onCambiarSeccion={setSeccion}
+        idioma={idioma}
+        t={t}
+        usuario={usuario}
+        onCerrarSesion={cerrarSesion}
+        onCambiarIdioma={cambiarIdioma}
+      />
+
+      {/* Main content — offset by sidebar */}
+      <main style={{
+        marginLeft: '220px',
+        flex: 1,
+        minHeight: '100vh',
+        transition: 'margin-left 0.25s ease',
+        overflowX: 'hidden',
+      }}>
+        {seccion === 'dashboard' && (
+          <Dashboard usuario={usuario} t={t} idioma={idioma} />
+        )}
+        {seccion === 'taiga' && (
+          <TaigaPage idioma={idioma} />
+        )}
+        {seccion === 'usuarios' && (
+          permisos.verUsuarios
+            ? <UsuariosPage idioma={idioma} usuario={usuario} />
+            : (
+              <div style={{ padding: '60px', textAlign: 'center' }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
+                <h2 style={{ color: '#1a2e1a' }}>
+                  {idioma === 'es' ? 'Acceso restringido' : 'Access restricted'}
+                </h2>
+                <p style={{ color: '#6b9a6b' }}>
+                  {idioma === 'es'
+                    ? 'Solo los administradores pueden ver la lista de usuarios.'
+                    : 'Only administrators can view the users list.'}
+                </p>
+              </div>
+            )
+        )}
+      </main>
     </div>
   );
 }

@@ -6,11 +6,9 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
-/**
- * Configuración de seguridad relajada para pruebas.
- */
+
 @TestConfiguration
-@Profile("test") // 👈 Solo se carga cuando el perfil "test" está activo
+@Profile("test")
 public class TestSecurityConfig {
 
     @Bean

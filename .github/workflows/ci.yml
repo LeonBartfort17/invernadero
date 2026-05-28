@@ -73,7 +73,7 @@ jobs:
       - name: 🔨 Compilar proyecto
         run: ./gradlew compileJava --no-daemon
 
-      - name: ✅ Correr pruebas JUnit
+      - name: ✅ Correr pruebas JUnit (contextLoads)
         run: ./gradlew test --tests "com.usco.invernadero.InvernaderoApplicationTests" --no-daemon --info
 
       - name: 📊 Publicar reporte de pruebas
@@ -102,7 +102,7 @@ jobs:
         working-directory: frontend
         run: npm install
 
-      - name: 🔨 Compilar frontend
+      - name: 🔨 Compilar frontend (con sidebar + Taiga + Usuarios)
         working-directory: frontend
         run: npm run build
 
@@ -111,3 +111,60 @@ jobs:
         with:
           name: frontend-build
           path: frontend/dist/
+
+  # ──────────────────────────────────────────────────────────────────────
+  # DESPLIEGUE — Vercel (Frontend) + Render (Backend)
+  # Requiere secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
+  # ──────────────────────────────────────────────────────────────────────
+  deploy-frontend:
+    name: 🚀 Deploy Frontend → Vercel
+    runs-on: ubuntu-latest
+    needs: frontend
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: 📥 Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: 🟢 Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 Instalar Vercel CLI
+        run: npm install -g vercel
+
+      - name: 📦 Instalar dependencias del frontend
+        working-directory: frontend
+        run: npm install
+
+      - name: 🔨 Build de producción
+        working-directory: frontend
+        run: npm run build
+        env:
+          # URL del backend en Render (configura este secret en GitHub)
+          VITE_API_URL: ${{ secrets.RENDER_BACKEND_URL }}
+
+      - name: 🚀 Desplegar en Vercel
+        working-directory: frontend
+        run: |
+          vercel deploy --prod --yes \
+            --token ${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  deploy-backend:
+    name: 🚀 Deploy Backend → Render
+    runs-on: ubuntu-latest
+    needs: backend
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: 🔔 Trigger deploy en Render
+        # Render auto-deploys desde GitHub. Este paso fuerza un redeploy vía webhook.
+        # Configura RENDER_DEPLOY_HOOK_URL en los secrets de GitHub.
+        run: |
+          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            || echo "⚠️ Render deploy hook no configurado — el deploy automático de Render se encarga."

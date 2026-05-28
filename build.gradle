@@ -24,10 +24,10 @@ dependencies {
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
     runtimeOnly 'org.postgresql:postgresql'
 
-    // ✅ Spring Security (autenticación y autorización)
+    // Spring Security (autenticación y autorización)
     implementation 'org.springframework.boot:spring-boot-starter-security'
 
-    // ✅ OAuth2 Client (login con Google)
+    // OAuth2 Client (login con Google)
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
 
     // Lombok
@@ -48,4 +48,7 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // ✅ CORRECCIÓN: activa el perfil "test" para que Spring cargue
+    //    TestSecurityConfig y NO cargue SecurityConfig (que depende de OAuth2)
+    jvmArgs '-Dspring.profiles.active=test'
 }
