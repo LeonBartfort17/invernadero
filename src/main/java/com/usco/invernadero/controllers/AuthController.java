@@ -13,7 +13,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "*", allowedHeaders = "*")
+@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000", "https://invernadero-three.vercel.app"}, allowedHeaders = "*")
 public class AuthController {
 
     @Autowired private UsuarioRepository usuarioRepository;
