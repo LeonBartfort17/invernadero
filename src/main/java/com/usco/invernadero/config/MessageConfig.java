@@ -38,10 +38,10 @@ public class MessageConfig implements WebMvcConfigurer {
     public LocaleResolver localeResolver() {
         AcceptHeaderLocaleResolver resolver = new AcceptHeaderLocaleResolver();
         resolver.setSupportedLocales(List.of(
-                new Locale("es"),
-                new Locale("en")
+                Locale.forLanguageTag("es"),
+                Locale.forLanguageTag("en")
         ));
-        resolver.setDefaultLocale(new Locale("es")); // español por defecto
+        resolver.setDefaultLocale(Locale.forLanguageTag("es")); // español por defecto
         return resolver;
     }
 

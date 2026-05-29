@@ -54,4 +54,5 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
     jvmArgs '-Dspring.profiles.active=test'
+    environment 'FRONTEND_URL', 'https://invernadero-three.vercel.app'
 }

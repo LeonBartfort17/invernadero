@@ -3,40 +3,35 @@
 #  Pruebas automáticas del BACKEND con pytest
 #  Rúbrica punto 4: backend-junit y python
 #
-#  Requisito previo: Backend Spring Boot corriendo en :8080
-#  Ejecutar:  python -m pytest test_backend_automatico.py -v
+#  Ejecutar local:      python -m pytest test_backend_automatico.py -v
+#  Ejecutar producción: BASE_URL=https://invernadero-pyen.onrender.com python -m pytest test_backend_automatico.py -v
 # ══════════════════════════════════════════════════════════════════
 
 import pytest
 import requests
+import os
 
-BASE_URL = "http://localhost:8080"
+BASE_URL = os.getenv("BASE_URL", "http://localhost:8080")
 
 # ── Credenciales de prueba ──────────────────────────────────────
-EMAIL    = "admin2@invernadero.com"
+EMAIL    = "admin@invernadero.com"
 PASSWORD = "admin123"
 
 
-# ── Fixture: sesión autenticada con login automático ───────────
+# ── Fixture: token JWT con login automático ────────────────────
 @pytest.fixture(scope="module")
-def sesion_autenticada():
+def token_jwt():
     """
-    Abre una sesión HTTP, hace POST a /api/auth/login con las
-    credenciales del administrador y devuelve la sesión lista
-    para usar en todas las pruebas del módulo.
+    Hace POST a /api/auth/login y devuelve el token JWT
+    para usarlo en todas las pruebas del módulo.
     """
-    sesion = requests.Session()
-
-    # El frontend envía form-urlencoded con 'username' y 'password'
-    respuesta = sesion.post(
+    respuesta = requests.post(
         f"{BASE_URL}/api/auth/login",
         data={"username": EMAIL, "password": PASSWORD},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
-        allow_redirects=True,
-        timeout=10,
+        timeout=15,
     )
 
-    # El backend responde JSON  {"success": true, ...}  con HTTP 200
     assert respuesta.status_code == 200, (
         f"❌ Login fallido — código HTTP: {respuesta.status_code}.\n"
         f"   Respuesta: {respuesta.text}\n"
@@ -47,17 +42,29 @@ def sesion_autenticada():
     assert datos.get("success") is True, (
         f"❌ Login no devolvió success=true. Respuesta: {datos}"
     )
+    assert "token" in datos, "❌ La respuesta no contiene el token JWT"
 
-    print(f"\n🔐 Sesión iniciada como {EMAIL}  →  {datos}")
-    return sesion
+    print(f"\n🔐 Token JWT obtenido para {EMAIL}")
+    return datos["token"]
+
+
+def auth_headers(token, extra=None):
+    """Genera headers con el token JWT."""
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    if extra:
+        headers.update(extra)
+    return headers
 
 
 # ══════════════════════════════════════════════════════════════════
 # PRUEBA 1 — El servidor responde (sin autenticación)
 # ══════════════════════════════════════════════════════════════════
 def test_servidor_activo():
-    """El backend debe estar corriendo y responder en el puerto 8080."""
-    respuesta = requests.get(f"{BASE_URL}/api/auth/me", timeout=10)
+    """El backend debe estar corriendo y responder."""
+    respuesta = requests.get(f"{BASE_URL}/api/auth/me", timeout=15)
     assert respuesta.status_code in (200, 401), (
         f"El servidor no respondió correctamente. Código: {respuesta.status_code}"
     )
@@ -67,9 +74,13 @@ def test_servidor_activo():
 # ══════════════════════════════════════════════════════════════════
 # PRUEBA 2 — GET /api/auth/me devuelve el usuario autenticado
 # ══════════════════════════════════════════════════════════════════
-def test_usuario_autenticado(sesion_autenticada):
+def test_usuario_autenticado(token_jwt):
     """Tras el login, /api/auth/me debe devolver los datos del usuario."""
-    respuesta = sesion_autenticada.get(f"{BASE_URL}/api/auth/me", timeout=10)
+    respuesta = requests.get(
+        f"{BASE_URL}/api/auth/me",
+        headers=auth_headers(token_jwt),
+        timeout=15,
+    )
     assert respuesta.status_code == 200, (
         f"Se esperaba 200 pero se recibió {respuesta.status_code}. "
         f"Respuesta: {respuesta.text}"
@@ -85,9 +96,13 @@ def test_usuario_autenticado(sesion_autenticada):
 # ══════════════════════════════════════════════════════════════════
 # PRUEBA 3 — GET /api/zonas devuelve una lista
 # ══════════════════════════════════════════════════════════════════
-def test_obtener_zonas(sesion_autenticada):
+def test_obtener_zonas(token_jwt):
     """GET /api/zonas debe devolver código 200 y una lista JSON."""
-    respuesta = sesion_autenticada.get(f"{BASE_URL}/api/zonas", timeout=10)
+    respuesta = requests.get(
+        f"{BASE_URL}/api/zonas",
+        headers=auth_headers(token_jwt),
+        timeout=15,
+    )
     assert respuesta.status_code == 200, (
         f"Se esperaba 200 pero se recibió {respuesta.status_code}"
     )
@@ -99,9 +114,13 @@ def test_obtener_zonas(sesion_autenticada):
 # ══════════════════════════════════════════════════════════════════
 # PRUEBA 4 — GET /api/invernaderos devuelve una lista
 # ══════════════════════════════════════════════════════════════════
-def test_obtener_invernaderos(sesion_autenticada):
+def test_obtener_invernaderos(token_jwt):
     """GET /api/invernaderos debe devolver código 200 y una lista JSON."""
-    respuesta = sesion_autenticada.get(f"{BASE_URL}/api/invernaderos", timeout=10)
+    respuesta = requests.get(
+        f"{BASE_URL}/api/invernaderos",
+        headers=auth_headers(token_jwt),
+        timeout=15,
+    )
     assert respuesta.status_code == 200, (
         f"Se esperaba 200 pero se recibió {respuesta.status_code}"
     )
@@ -113,9 +132,13 @@ def test_obtener_invernaderos(sesion_autenticada):
 # ══════════════════════════════════════════════════════════════════
 # PRUEBA 5 — POST /api/zonas crea una nueva zona
 # ══════════════════════════════════════════════════════════════════
-def test_crear_zona(sesion_autenticada):
+def test_crear_zona(token_jwt):
     """POST /api/zonas/{invernaderoId} debe crear una zona y devolver 201."""
-    inv_resp = sesion_autenticada.get(f"{BASE_URL}/api/invernaderos", timeout=10)
+    inv_resp = requests.get(
+        f"{BASE_URL}/api/invernaderos",
+        headers=auth_headers(token_jwt),
+        timeout=15,
+    )
     assert inv_resp.status_code == 200
     invernaderos = inv_resp.json()
     assert len(invernaderos) > 0, "Debe existir al menos un invernadero para crear una zona"
@@ -126,11 +149,11 @@ def test_crear_zona(sesion_autenticada):
         "tipo_cultivo": "Prueba Automatica",
         "area_total":   99.9,
     }
-    respuesta = sesion_autenticada.post(
+    respuesta = requests.post(
         f"{BASE_URL}/api/zonas/{invernadero_id}",
         json=nueva_zona,
-        headers={"Content-Type": "application/json"},
-        timeout=10,
+        headers=auth_headers(token_jwt),
+        timeout=15,
     )
     assert respuesta.status_code == 201, (
         f"Se esperaba 201 (Created) pero se recibió {respuesta.status_code}. "
@@ -142,9 +165,13 @@ def test_crear_zona(sesion_autenticada):
 # ══════════════════════════════════════════════════════════════════
 # PRUEBA 6 — DELETE /api/zonas/{id} elimina la zona de prueba
 # ══════════════════════════════════════════════════════════════════
-def test_eliminar_zona_prueba(sesion_autenticada):
+def test_eliminar_zona_prueba(token_jwt):
     """DELETE /api/zonas/{id} debe eliminar la zona y devolver 200."""
-    zonas_resp = sesion_autenticada.get(f"{BASE_URL}/api/zonas", timeout=10)
+    zonas_resp = requests.get(
+        f"{BASE_URL}/api/zonas",
+        headers=auth_headers(token_jwt),
+        timeout=15,
+    )
     assert zonas_resp.status_code == 200
     zonas = zonas_resp.json()
 
@@ -157,14 +184,16 @@ def test_eliminar_zona_prueba(sesion_autenticada):
     )
 
     zona_id = zona_prueba["id"]
-    respuesta = sesion_autenticada.delete(
-        f"{BASE_URL}/api/zonas/{zona_id}", timeout=10
+    respuesta = requests.delete(
+        f"{BASE_URL}/api/zonas/{zona_id}",
+        headers=auth_headers(token_jwt),
+        timeout=15,
     )
     assert respuesta.status_code == 200, (
         f"Se esperaba 200 pero se recibió {respuesta.status_code}. "
         f"Respuesta: {respuesta.text}"
     )
-    print(f"\n✅ DELETE /api/zonas/{zona_id} — Zona eliminada. Respuesta: {respuesta.text}")
+    print(f"\n✅ DELETE /api/zonas/{zona_id} — Zona eliminada.")
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -173,7 +202,7 @@ def test_eliminar_zona_prueba(sesion_autenticada):
 def test_endpoint_inexistente():
     """Un endpoint que no existe debe devolver 404 o 401."""
     respuesta = requests.get(
-        f"{BASE_URL}/api/recurso_que_no_existe", timeout=10
+        f"{BASE_URL}/api/recurso_que_no_existe", timeout=15
     )
     assert respuesta.status_code in (404, 401), (
         f"Se esperaba 404 o 401 pero se recibió {respuesta.status_code}"
