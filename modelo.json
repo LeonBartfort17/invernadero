@@ -1,0 +1,186 @@
+{
+  "sistema": "Sistema AIoT para Gestión de Invernaderos y Cultivos Hidropónicos",
+  "version": "2.0.0",
+  "repositorio": "https://github.com/LeonBartfort17/invernadero",
+  "frontend": "https://invernadero-three.vercel.app",
+  "backend": "https://invernadero-pyen.onrender.com",
+  "swagger": "https://invernadero-pyen.onrender.com/swagger-ui/index.html",
+  "base_de_datos": {
+    "motor": "PostgreSQL 15+",
+    "proveedor": "Render (Ohio)",
+    "nombre": "invernadero_wnjh",
+    "usuario": "invernadero_user",
+    "host": "dpg-d8c8184m0tmc73f4jc00-a.ohio-postgres.render.com",
+    "puerto": 5432
+  },
+  "entidades": {
+
+    "usuario": {
+      "tabla": "usuarios",
+      "clase_java": "com.usco.invernadero.models.Usuario",
+      "descripcion": "Personas que acceden y gestionan el sistema",
+      "pk_tipo": "UUID",
+      "anotaciones_jpa": ["@Entity", "@Table(name='usuarios')", "@Data"],
+      "campos": {
+        "id":            { "tipo": "UUID",         "pk": true,    "requerido": true,  "generado": "GenerationType.UUID" },
+        "nombre":        { "tipo": "VARCHAR(100)",  "requerido": true,  "columna_bd": "nombre" },
+        "email":         { "tipo": "VARCHAR(150)",  "unico": true, "requerido": true,  "columna_bd": "email" },
+        "passwordHash":  { "tipo": "VARCHAR(255)",  "requerido": true,  "columna_bd": "password_hash", "nota": "BCrypt" },
+        "rol":           { "tipo": "ENUM",          "valores": ["ADMIN", "OPERADOR", "VIEWER"], "requerido": true, "anotacion": "@Enumerated(EnumType.STRING)" },
+        "createdAt":     { "tipo": "TIMESTAMP",     "columna_bd": "created_at", "default": "LocalDateTime.now()", "editable": false }
+      },
+      "relaciones": [
+        { "tipo": "OneToMany", "entidad": "invernadero", "campo": "invernaderos", "mappedBy": "usuario", "cascade": "ALL", "json": "@JsonIgnore" }
+      ]
+    },
+
+    "invernadero": {
+      "tabla": "invernaderos",
+      "clase_java": "com.usco.invernadero.models.Invernadero",
+      "descripcion": "Estructura física que contiene los cultivos",
+      "pk_tipo": "UUID",
+      "anotaciones_jpa": ["@Entity", "@Table(name='invernaderos')", "@Data"],
+      "campos": {
+        "id":        { "tipo": "UUID",         "pk": true,    "requerido": true,  "generado": "GenerationType.UUID" },
+        "usuario":   { "tipo": "UUID",         "fk": "usuarios.id", "requerido": true,  "anotacion": "@ManyToOne @JoinColumn(name='usuario_id')" },
+        "nombre":    { "tipo": "VARCHAR(100)", "requerido": true },
+        "ubicacion": { "tipo": "VARCHAR(200)", "requerido": false },
+        "areaM2":    { "tipo": "FLOAT",        "columna_bd": "area_m2", "requerido": false },
+        "tipo":      { "tipo": "ENUM",         "valores": ["CONVENCIONAL", "HIDROPONICO", "ACUAPONICO"], "requerido": false, "anotacion": "@Enumerated(EnumType.STRING)" },
+        "activo":    { "tipo": "BOOLEAN",      "default": true, "requerido": true },
+        "createdAt": { "tipo": "TIMESTAMP",    "columna_bd": "created_at", "anotacion": "@CreationTimestamp", "editable": false }
+      },
+      "relaciones": [
+        { "tipo": "ManyToOne",  "entidad": "usuario",  "campo": "usuario",  "fk": "usuario_id" },
+        { "tipo": "OneToMany",  "entidad": "zona",     "campo": "zonas",    "mappedBy": "invernadero", "cascade": "ALL", "json": "@JsonIgnore" }
+      ]
+    },
+
+    "zona": {
+      "tabla": "zonas",
+      "clase_java": "com.usco.invernadero.models.Zona",
+      "descripcion": "Sección dentro del invernadero con cultivos y sensores",
+      "pk_tipo": "BIGSERIAL",
+      "nota": "La PK es Long (BIGSERIAL autoincremental, NO UUID). Los campos tipo_cultivo y area_total están sincronizados con el frontend React. Los atributos Java usan @Column con el nombre exacto de BD.",
+      "anotaciones_jpa": ["@Entity", "@Table(name='zonas')"],
+      "campos": {
+        "id":              { "tipo": "BIGSERIAL",    "pk": true,    "requerido": true,  "generado": "GenerationType.IDENTITY" },
+        "invernadero":     { "tipo": "UUID",         "fk": "invernaderos.id", "requerido": true,  "anotacion": "@ManyToOne(fetch=EAGER) @JoinColumn(name='invernadero_id')" },
+        "nombre":          { "tipo": "VARCHAR(255)", "requerido": true },
+        "tipo_cultivo":    { "tipo": "VARCHAR(255)", "columna_bd": "tipo_cultivo", "atributo_java": "tipo_cultivo", "requerido": false },
+        "area_total":      { "tipo": "DOUBLE",       "columna_bd": "area_total",   "atributo_java": "area_total",   "requerido": false },
+        "createdAt":       { "tipo": "TIMESTAMP",    "columna_bd": "created_at",   "default": "LocalDateTime.now()", "editable": false }
+      },
+      "relaciones": [
+        { "tipo": "ManyToOne", "entidad": "invernadero", "campo": "invernadero", "fk": "invernadero_id", "fetch": "EAGER" }
+      ]
+    },
+
+    "cultivo": {
+      "tabla": "cultivos",
+      "clase_java": "com.usco.invernadero.models.Cultivo",
+      "descripcion": "Planta o especie cultivada dentro de una zona",
+      "pk_tipo": "UUID",
+      "anotaciones_jpa": ["@Entity", "@Table(name='cultivos')", "@Data"],
+      "campos": {
+        "id":                   { "tipo": "UUID",        "pk": true,   "requerido": true,  "generado": "GenerationType.UUID" },
+        "zona":                 { "tipo": "BIGINT",      "fk": "zonas.id", "requerido": true, "anotacion": "@ManyToOne @JoinColumn(name='zona_id')" },
+        "tipoPlanta":           { "tipo": "VARCHAR(100)","requerido": true,  "columna_bd": "tipo_planta" },
+        "fechaSiembra":         { "tipo": "DATE",        "requerido": true,  "columna_bd": "fecha_siembra" },
+        "fechaCosechaEstimada": { "tipo": "DATE",        "requerido": false, "columna_bd": "fecha_cosecha_estimada" },
+        "estadoActivo":         { "tipo": "BOOLEAN",     "default": true,    "columna_bd": "estado_activo" },
+        "created_at":           { "tipo": "TIMESTAMP",   "default": "NOW()", "editable": false }
+      },
+      "relaciones": [
+        { "tipo": "ManyToOne", "entidad": "zona", "campo": "zona", "fk": "zona_id" }
+      ]
+    },
+
+    "sensor": {
+      "tabla": "sensores",
+      "clase_java": "com.usco.invernadero.models.Sensor",
+      "descripcion": "Dispositivo IoT que mide variables ambientales dentro de una zona",
+      "pk_tipo": "UUID",
+      "nota": "El campo de fecha se llama fecha_registro en BD (no created_at), mapeado con @CreationTimestamp al atributo Java createdAt.",
+      "anotaciones_jpa": ["@Entity", "@Table(name='sensores')", "@Data"],
+      "campos": {
+        "id":           { "tipo": "UUID",        "pk": true,   "requerido": true, "generado": "GenerationType.UUID" },
+        "zona":         { "tipo": "BIGINT",      "fk": "zonas.id", "requerido": true, "anotacion": "@ManyToOne @JoinColumn(name='zona_id')" },
+        "nombre":       { "tipo": "VARCHAR(100)","requerido": true },
+        "tipo":         { "tipo": "ENUM",        "valores": ["TEMPERATURA", "HUMEDAD_AMBIENTE", "HUMEDAD_SUELO", "CO2", "ILUMINACION"], "requerido": true, "anotacion": "@Enumerated(EnumType.STRING)" },
+        "estadoActivo": { "tipo": "BOOLEAN",     "default": true, "columna_bd": "estado_activo" },
+        "createdAt":    { "tipo": "TIMESTAMP",   "columna_bd": "fecha_registro", "anotacion": "@CreationTimestamp", "editable": false }
+      },
+      "relaciones": [
+        { "tipo": "ManyToOne",  "entidad": "zona",     "campo": "zona",       "fk": "zona_id" },
+        { "tipo": "OneToMany",  "entidad": "medicion", "campo": "mediciones", "mappedBy": "sensor", "cascade": "ALL", "json": "@JsonIgnore" }
+      ]
+    },
+
+    "medicion": {
+      "tabla": "mediciones",
+      "clase_java": "com.usco.invernadero.models.Medicion",
+      "descripcion": "Registro de lectura capturada por un sensor en un momento dado",
+      "pk_tipo": "UUID",
+      "anotaciones_jpa": ["@Entity", "@Table(name='mediciones')", "@Data"],
+      "campos": {
+        "id":            { "tipo": "UUID",      "pk": true,  "requerido": true, "generado": "GenerationType.UUID" },
+        "sensor":        { "tipo": "UUID",      "fk": "sensores.id", "requerido": true, "anotacion": "@ManyToOne @JoinColumn(name='sensor_id')" },
+        "valor":         { "tipo": "FLOAT",     "requerido": true },
+        "fechaRegistro": { "tipo": "TIMESTAMP", "columna_bd": "fecha_registro", "anotacion": "@CreationTimestamp", "editable": false }
+      },
+      "relaciones": [
+        { "tipo": "ManyToOne", "entidad": "sensor", "campo": "sensor", "fk": "sensor_id" }
+      ]
+    }
+
+  },
+
+  "relaciones": [
+    { "de": "usuarios",     "a": "invernaderos", "tipo": "uno_a_muchos", "campo_fk": "usuario_id",     "cascade": "ALL",   "json_ignore": true },
+    { "de": "invernaderos", "a": "zonas",        "tipo": "uno_a_muchos", "campo_fk": "invernadero_id", "cascade": "ALL",   "json_ignore": true },
+    { "de": "zonas",        "a": "cultivos",     "tipo": "uno_a_muchos", "campo_fk": "zona_id",        "cascade": false },
+    { "de": "zonas",        "a": "sensores",     "tipo": "uno_a_muchos", "campo_fk": "zona_id",        "cascade": false },
+    { "de": "sensores",     "a": "mediciones",   "tipo": "uno_a_muchos", "campo_fk": "sensor_id",      "cascade": "ALL",   "json_ignore": true }
+  ],
+
+  "enumeraciones": {
+    "Rol": {
+      "clase_java": "com.usco.invernadero.models.enums.Rol",
+      "valores": ["ADMIN", "OPERADOR", "VIEWER"],
+      "nota": "VIEWER (no VISOR). ADMIN ve sección Usuarios. VIEWER solo lectura."
+    },
+    "TipoInvernadero": {
+      "clase_java": "com.usco.invernadero.models.enums.TipoInvernadero",
+      "valores": ["CONVENCIONAL", "HIDROPONICO", "ACUAPONICO"]
+    },
+    "TipoSensor": {
+      "clase_java": "com.usco.invernadero.models.enums.TipoSensor",
+      "valores": ["TEMPERATURA", "HUMEDAD_AMBIENTE", "HUMEDAD_SUELO", "CO2", "ILUMINACION"]
+    }
+  },
+
+  "despliegue": {
+    "frontend": {
+      "url": "https://invernadero-three.vercel.app",
+      "proveedor": "Vercel",
+      "tecnologia": "React + Vite",
+      "ci_cd": "GitHub Actions (ci.yml) — deploy en push a main"
+    },
+    "backend": {
+      "url": "https://invernadero-pyen.onrender.com",
+      "swagger": "https://invernadero-pyen.onrender.com/swagger-ui/index.html",
+      "proveedor": "Render",
+      "tecnologia": "Spring Boot 4.0.6, Java 21",
+      "ci_cd": "GitHub Actions (ci.yml) — webhook Render en push a main"
+    },
+    "base_de_datos": {
+      "proveedor": "Render (Ohio)",
+      "motor": "PostgreSQL 15+",
+      "nombre": "invernadero_wnjh",
+      "host": "dpg-d8c8184m0tmc73f4jc00-a.ohio-postgres.render.com",
+      "puerto": 5432,
+      "ddl_auto": "none"
+    }
+  }
+}

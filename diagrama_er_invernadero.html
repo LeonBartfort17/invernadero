@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Diagrama ER — Sistema AIoT Invernadero</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+  h1 { color: #1B5E20; text-align: center; margin-bottom: 4px; }
+  .subtitle { text-align: center; color: #555; font-size: 13px; margin-bottom: 8px; }
+  .links { text-align: center; font-size: 12px; margin-bottom: 20px; }
+  .links a { color: #1565C0; margin: 0 8px; }
+  #erd-wrap svg { width: 100% !important; }
+  #erd-wrap { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+</style>
+</head>
+<body>
+<h1>🌿 Diagrama Entidad-Relación — Sistema AIoT Invernadero</h1>
+<p class="subtitle">Universidad Surcolombiana · LeonBartfort17 · 2025</p>
+<div class="links">
+  <a href="https://invernadero-three.vercel.app" target="_blank">🌐 Frontend (Vercel)</a>
+  <a href="https://invernadero-pyen.onrender.com/swagger-ui/index.html" target="_blank">📄 Swagger UI (Render)</a>
+  <a href="https://github.com/LeonBartfort17/invernadero" target="_blank">💻 GitHub</a>
+</div>
+<div id="erd-wrap"></div>
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+await document.fonts.ready;
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  fontFamily: 'Arial, sans-serif',
+  themeVariables: {
+    darkMode: dark,
+    fontSize: '13px',
+    fontFamily: 'Arial, sans-serif',
+    lineColor: dark ? '#9c9a92' : '#73726c',
+    textColor: dark ? '#c2c0b6' : '#3d3d3a',
+    primaryColor: dark ? '#1e3a5f' : '#E6F1FB',
+    primaryBorderColor: dark ? '#378ADD' : '#185FA5',
+    primaryTextColor: dark ? '#B5D4F4' : '#0C447C',
+    edgeLabelBackground: dark ? '#1a1a18' : '#ffffff',
+  },
+});
+
+const diagram = `erDiagram
+  USUARIOS {
+    UUID id PK
+    VARCHAR nombre
+    VARCHAR email
+    VARCHAR password_hash
+    ENUM rol
+    TIMESTAMP created_at
+  }
+  INVERNADEROS {
+    UUID id PK
+    UUID usuario_id FK
+    VARCHAR nombre
+    VARCHAR ubicacion
+    FLOAT area_m2
+    ENUM tipo
+    BOOLEAN activo
+    TIMESTAMP created_at
+  }
+  ZONAS {
+    BIGSERIAL id PK
+    UUID invernadero_id FK
+    VARCHAR nombre
+    VARCHAR tipo_cultivo
+    DOUBLE area_total
+    TIMESTAMP created_at
+  }
+  CULTIVOS {
+    UUID id PK
+    BIGINT zona_id FK
+    VARCHAR tipo_planta
+    DATE fecha_siembra
+    DATE fecha_cosecha_estimada
+    BOOLEAN estado_activo
+    TIMESTAMP created_at
+  }
+  SENSORES {
+    UUID id PK
+    BIGINT zona_id FK
+    VARCHAR nombre
+    ENUM tipo
+    BOOLEAN estado_activo
+    TIMESTAMP fecha_registro
+  }
+  MEDICIONES {
+    UUID id PK
+    UUID sensor_id FK
+    FLOAT valor
+    TIMESTAMP fecha_registro
+  }
+  USUARIOS ||--o{ INVERNADEROS : "posee"
+  INVERNADEROS ||--o{ ZONAS : "contiene"
+  ZONAS ||--o{ CULTIVOS : "tiene"
+  ZONAS ||--o{ SENSORES : "instala"
+  SENSORES ||--o{ MEDICIONES : "genera"
+`;
+
+const { svg } = await mermaid.render('er-svg', diagram);
+document.getElementById('erd-wrap').innerHTML = svg;
+
+document.querySelectorAll('#erd-wrap svg .node').forEach(node => {
+  const firstPath = node.querySelector('path[d]');
+  if (!firstPath) return;
+  const d = firstPath.getAttribute('d');
+  const nums = d.match(/-?[\d.]+/g)?.map(Number);
+  if (!nums || nums.length < 8) return;
+  const xs = [nums[0], nums[2], nums[4], nums[6]];
+  const ys = [nums[1], nums[3], nums[5], nums[7]];
+  const x = Math.min(...xs), y = Math.min(...ys);
+  const w = Math.max(...xs) - x, h = Math.max(...ys) - y;
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', x); rect.setAttribute('y', y);
+  rect.setAttribute('width', w); rect.setAttribute('height', h);
+  rect.setAttribute('rx', '8');
+  for (const a of ['fill', 'stroke', 'stroke-width', 'class', 'style']) {
+    if (firstPath.hasAttribute(a)) rect.setAttribute(a, firstPath.getAttribute(a));
+  }
+  firstPath.replaceWith(rect);
+});
+
+document.querySelectorAll('#erd-wrap svg .row-rect-odd path, #erd-wrap svg .row-rect-even path').forEach(p => {
+  p.setAttribute('stroke', 'none');
+});
+</script>
+</body>
+</html>
