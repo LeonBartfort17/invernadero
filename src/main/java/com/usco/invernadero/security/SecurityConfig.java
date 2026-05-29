@@ -124,9 +124,7 @@ public class SecurityConfig {
 
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(usuarioDetailsService);
-        return provider;
+        return new DaoAuthenticationProvider(usuarioDetailsService);
     }
 
     @Bean
