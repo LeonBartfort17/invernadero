@@ -1,96 +1,57 @@
-package com.usco.invernadero.controllers;
- 
-import com.usco.invernadero.models.Usuario;
-import com.usco.invernadero.models.enums.Rol;
-import com.usco.invernadero.repositories.UsuarioRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.core.user.OAuth2User;
-import org.springframework.web.bind.annotation.*;
- 
-import java.util.Map;
- 
-@RestController
-@RequestMapping("/api/auth")
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
-public class AuthController {
- 
-    @Autowired private UsuarioRepository usuarioRepository;
-    @Autowired private PasswordEncoder passwordEncoder;
- 
-    /**
-     * GET /api/auth/me
-     * Retorna el usuario autenticado actualmente en la sesión.
-     * Funciona tanto para login con Google (OAuth2User)
-     * como para login con email+password (UserDetails).
-     */
-    @GetMapping("/me")
-    public ResponseEntity<?> obtenerUsuarioActual(Authentication authentication) {
- 
-        if (authentication == null || !authentication.isAuthenticated()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "No hay sesión activa"));
-        }
- 
-        String email = null;
- 
-        // Caso 1: login con Google → el principal es OAuth2User
-        if (authentication.getPrincipal() instanceof OAuth2User oauthUser) {
-            email = oauthUser.getAttribute("email");
-        }
-        // Caso 2: login con email+password → el principal es UserDetails
-        else if (authentication.getPrincipal() instanceof UserDetails userDetails) {
-            email = userDetails.getUsername();
-        }
- 
-        if (email == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "No se pudo obtener el email del usuario"));
-        }
- 
-        final String emailFinal = email;
-        return usuarioRepository.findByEmail(emailFinal)
-                .map(u -> ResponseEntity.ok(Map.of(
-                        "nombre", u.getNombre(),
-                        "email",  u.getEmail(),
-                        "rol",    u.getRol().name()
-                )))
-                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-    }
- 
-    /**
-     * POST /api/auth/registro
-     * Registra un nuevo usuario con rol VIEWER por defecto.
-     */
-    @PostMapping("/registro")
-    public ResponseEntity<?> registrar(@RequestBody Map<String, String> datos) {
-        String email    = datos.get("email");
-        String password = datos.get("password");
-        String nombre   = datos.get("nombre");
- 
-        if (email == null || password == null || nombre == null) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", "nombre, email y password son requeridos"));
-        }
- 
-        if (usuarioRepository.existsByEmail(email)) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("error", "Ya existe un usuario con ese email"));
-        }
- 
-        Usuario nuevo = new Usuario();
-        nuevo.setNombre(nombre);
-        nuevo.setEmail(email);
-        nuevo.setPasswordHash(passwordEncoder.encode(password));
-        nuevo.setRol(Rol.VIEWER);
- 
-        usuarioRepository.save(nuevo);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(Map.of("mensaje", "Usuario registrado correctamente"));
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.6'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.usco'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
- 
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Backend principal
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // Spring Security
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // OAuth2 Client (login con Google)
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+    // JWT
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+    // Tests
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.seleniumhq.selenium:selenium-java:4.18.1'
+    testImplementation 'io.github.bonigarcia:webdrivermanager:5.6.3'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    jvmArgs '-Dspring.profiles.active=test'
+}

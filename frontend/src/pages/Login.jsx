@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { setToken } from '../App';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
-function Login({ t, idioma, onCambiarIdioma }) {
+function Login({ t, idioma, onCambiarIdioma, onLogin }) {
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
@@ -22,13 +23,18 @@ function Login({ t, idioma, onCambiarIdioma }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formData,
-        credentials: 'include',
       });
 
       const data = await res.json().catch(() => ({}));
 
-      if (res.ok && data.success) {
-        window.location.href = '/';
+      if (res.ok && data.success && data.token) {
+        // Guardar el JWT y obtener datos del usuario
+        setToken(data.token);
+        const meRes  = await fetch(`${API}/api/auth/me`, {
+          headers: { 'Authorization': `Bearer ${data.token}` }
+        });
+        const usuario = await meRes.json();
+        onLogin(usuario);
       } else {
         setError(data.error || t.loginErrorCredenciales);
       }

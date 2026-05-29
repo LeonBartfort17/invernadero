@@ -8,7 +8,6 @@ import en from './i18n/en';
 import { detectarIdioma, guardarIdiomaManual } from './i18n/detectarIdioma';
 
 const IDIOMAS = { es, en };
-
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const PERMISOS = {
@@ -17,6 +16,17 @@ const PERMISOS = {
   VIEWER:   { puedeCrear: false, puedeEliminar: false, verUsuarios: false },
 };
 
+// ── Helpers JWT ────────────────────────────────────────────────────────────
+export const getToken  = ()        => localStorage.getItem('jwt_token');
+export const setToken  = (t)       => localStorage.setItem('jwt_token', t);
+export const clearToken = ()       => localStorage.removeItem('jwt_token');
+export const authHeaders = (extra = {}) => ({
+  'Authorization': `Bearer ${getToken()}`,
+  'Content-Type': 'application/json',
+  ...extra,
+});
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
 function Dashboard({ usuario, t, idioma }) {
   const [zonas, setZonas]               = useState([]);
   const [invernaderos, setInvernaderos] = useState([]);
@@ -27,17 +37,17 @@ function Dashboard({ usuario, t, idioma }) {
   const [invernaderoId, setInvernaderoId] = useState('');
 
   const permisos = PERMISOS[usuario.rol] || PERMISOS.VIEWER;
-  const headers  = { 'Content-Type': 'application/json', 'Accept-Language': idioma };
+  const headers  = authHeaders({ 'Accept-Language': idioma });
 
   const cargarZonas = () => {
-    fetch(`${API}/api/zonas`, { credentials: 'include', headers })
+    fetch(`${API}/api/zonas`, { headers })
       .then(r => r.json())
       .then(d => { setZonas(Array.isArray(d) ? d : []); setCargando(false); })
       .catch(() => setCargando(false));
   };
 
   const cargarInvernaderos = () => {
-    fetch(`${API}/api/invernaderos`, { credentials: 'include', headers })
+    fetch(`${API}/api/invernaderos`, { headers })
       .then(r => r.json())
       .then(d => setInvernaderos(Array.isArray(d) ? d : []))
       .catch(console.error);
@@ -51,7 +61,7 @@ function Dashboard({ usuario, t, idioma }) {
       alert(t.camposIncompletos); return;
     }
     fetch(`${API}/api/zonas/${invernaderoId}`, {
-      method: 'POST', credentials: 'include', headers,
+      method: 'POST', headers,
       body: JSON.stringify({ nombre, tipo_cultivo: tipoCultivo, area_total: parseFloat(areaTotal) }),
     })
       .then(r => r.text()).then(msg => {
@@ -63,7 +73,7 @@ function Dashboard({ usuario, t, idioma }) {
 
   const eliminarZona = (id, nombreZona) => {
     if (!confirm(t.confirmarEliminar(nombreZona))) return;
-    fetch(`${API}/api/zonas/${id}`, { method: 'DELETE', credentials: 'include', headers })
+    fetch(`${API}/api/zonas/${id}`, { method: 'DELETE', headers })
       .then(r => r.text()).then(msg => { alert(msg); cargarZonas(); });
   };
 
@@ -72,8 +82,6 @@ function Dashboard({ usuario, t, idioma }) {
 
   return (
     <div style={{ padding: '32px', fontFamily: "'Segoe UI', sans-serif" }}>
-
-      {/* Header */}
       <div style={{ marginBottom: '32px', textAlign: 'center' }}>
         <h1 style={{ color: '#1a2e1a', margin: '0 0 6px', fontSize: '28px', fontWeight: '800' }}>
           🌿 {t.titulo}
@@ -81,7 +89,6 @@ function Dashboard({ usuario, t, idioma }) {
         <p style={{ color: '#6b9a6b', margin: 0, fontSize: '14px' }}>{t.subtitulo}</p>
       </div>
 
-      {/* Formulario */}
       {permisos.puedeCrear && (
         <div style={{
           backgroundColor: '#fff', padding: '24px', borderRadius: '16px',
@@ -128,7 +135,6 @@ function Dashboard({ usuario, t, idioma }) {
 
       <hr style={{ border: '0', borderTop: '1px solid #e0f0e0', margin: '0 0 32px' }} />
 
-      {/* Lista de zonas */}
       {cargando ? (
         <div style={{ textAlign: 'center', fontSize: '18px', color: '#6b9a6b' }}>🔄 {t.cargando}</div>
       ) : zonas.length === 0 ? (
@@ -169,6 +175,7 @@ function Dashboard({ usuario, t, idioma }) {
   );
 }
 
+// ── App ────────────────────────────────────────────────────────────────────
 function App() {
   const [usuario, setUsuario]         = useState(null);
   const [verificando, setVerificando] = useState(true);
@@ -179,17 +186,37 @@ function App() {
   const cambiarIdioma = (l) => { setIdioma(l); guardarIdiomaManual(l); };
 
   useEffect(() => {
+    // 1. ¿Viene token de Google OAuth en la URL? (/?token=xxx)
+    const params = new URLSearchParams(window.location.search);
+    const tokenUrl = params.get('token');
+    if (tokenUrl) {
+      setToken(tokenUrl);
+      // Limpia el token de la URL sin recargar
+      window.history.replaceState({}, document.title, '/');
+    }
+
+    // 2. Verificar token guardado
+    const token = getToken();
+    if (!token) {
+      setVerificando(false);
+      return;
+    }
+
     fetch(`${API}/api/auth/me`, {
-      credentials: 'include', headers: { 'Accept-Language': idioma }
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept-Language': idioma }
     })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { setUsuario(data); setVerificando(false); })
-      .catch(() => setVerificando(false));
+      .then(data => {
+        if (data) setUsuario(data);
+        else clearToken(); // token inválido o expirado
+        setVerificando(false);
+      })
+      .catch(() => { clearToken(); setVerificando(false); });
   }, []);
 
   const cerrarSesion = () => {
-    fetch(`${API}/api/auth/logout`, { method: 'POST', credentials: 'include' })
-      .then(() => setUsuario(null));
+    clearToken();
+    setUsuario(null);
   };
 
   if (verificando) return (
@@ -201,13 +228,14 @@ function App() {
     </div>
   );
 
-  if (!usuario) return <Login t={t} idioma={idioma} onCambiarIdioma={cambiarIdioma} />;
+  if (!usuario) return (
+    <Login t={t} idioma={idioma} onCambiarIdioma={cambiarIdioma} onLogin={setUsuario} />
+  );
 
   const permisos = PERMISOS[usuario.rol] || PERMISOS.VIEWER;
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f4f9f4', fontFamily: "'Segoe UI', sans-serif" }}>
-
       <Sidebar
         seccion={seccion}
         onCambiarSeccion={setSeccion}
@@ -217,21 +245,10 @@ function App() {
         onCerrarSesion={cerrarSesion}
         onCambiarIdioma={cambiarIdioma}
       />
-
-      <main style={{
-        marginLeft: '220px',
-        flex: 1,
-        minHeight: '100vh',
-        transition: 'margin-left 0.25s ease',
-        overflowX: 'hidden',
-      }}>
-        {seccion === 'dashboard' && (
-          <Dashboard usuario={usuario} t={t} idioma={idioma} />
-        )}
-        {seccion === 'taiga' && (
-          <TaigaPage idioma={idioma} />
-        )}
-        {seccion === 'usuarios' && (
+      <main style={{ marginLeft: '220px', flex: 1, minHeight: '100vh', transition: 'margin-left 0.25s ease', overflowX: 'hidden' }}>
+        {seccion === 'dashboard' && <Dashboard usuario={usuario} t={t} idioma={idioma} />}
+        {seccion === 'taiga'     && <TaigaPage idioma={idioma} />}
+        {seccion === 'usuarios'  && (
           permisos.verUsuarios
             ? <UsuariosPage idioma={idioma} usuario={usuario} />
             : (

@@ -8,6 +8,9 @@ on:
 
 jobs:
 
+  # ══════════════════════════════════════════════════════════════════════
+  # JOB 1 — Backend: compilar + pruebas JUnit
+  # ══════════════════════════════════════════════════════════════════════
   backend:
     name: Backend - Compilar y Pruebas JUnit
     runs-on: ubuntu-latest
@@ -70,11 +73,16 @@ jobs:
           );
           SQL
 
+      - name: 🔍 Verificar Gradle wrapper
+        run: ./gradlew --version
+
       - name: 🔨 Compilar proyecto
         run: ./gradlew compileJava --no-daemon
 
-      - name: ✅ Correr pruebas JUnit (contextLoads)
+      - name: ✅ Correr pruebas JUnit
         run: ./gradlew test --tests "com.usco.invernadero.InvernaderoApplicationTests" --no-daemon --info
+        env:
+          SPRING_PROFILES_ACTIVE: test
 
       - name: 📊 Publicar reporte de pruebas
         uses: actions/upload-artifact@v4
@@ -83,6 +91,9 @@ jobs:
           name: reporte-backend
           path: build/reports/tests/test/
 
+  # ══════════════════════════════════════════════════════════════════════
+  # JOB 2 — Frontend: instalar + compilar
+  # ══════════════════════════════════════════════════════════════════════
   frontend:
     name: Frontend - Instalar y Compilar
     runs-on: ubuntu-latest
@@ -102,9 +113,11 @@ jobs:
         working-directory: frontend
         run: npm install
 
-      - name: 🔨 Compilar frontend (con sidebar + Taiga + Usuarios)
+      - name: 🔨 Build de producción (con VITE_API_URL de prueba)
         working-directory: frontend
         run: npm run build
+        env:
+          VITE_API_URL: http://localhost:8080
 
       - name: 📊 Publicar build
         uses: actions/upload-artifact@v4
@@ -112,10 +125,11 @@ jobs:
           name: frontend-build
           path: frontend/dist/
 
-  # ──────────────────────────────────────────────────────────────────────
-  # DESPLIEGUE — Vercel (Frontend) + Render (Backend)
-  # Requiere secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
-  # ──────────────────────────────────────────────────────────────────────
+  # ══════════════════════════════════════════════════════════════════════
+  # JOB 3 — Deploy Frontend → Vercel
+  # Solo en push a main. Requiere secrets:
+  #   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID, RENDER_BACKEND_URL
+  # ══════════════════════════════════════════════════════════════════════
   deploy-frontend:
     name: 🚀 Deploy Frontend → Vercel
     runs-on: ubuntu-latest
@@ -132,28 +146,37 @@ jobs:
           node-version: '20'
 
       - name: 📦 Instalar Vercel CLI
-        run: npm install -g vercel
+        run: npm install -g vercel@latest
 
       - name: 📦 Instalar dependencias del frontend
         working-directory: frontend
         run: npm install
 
-      - name: 🔨 Build de producción
+      - name: 🔨 Build de producción con URL de Render
         working-directory: frontend
         run: npm run build
         env:
-          # URL del backend en Render (configura este secret en GitHub)
           VITE_API_URL: ${{ secrets.RENDER_BACKEND_URL }}
 
-      - name: 🚀 Desplegar en Vercel
+      - name: 🔗 Vincular proyecto con Vercel
         working-directory: frontend
-        run: |
-          vercel deploy --prod --yes \
-            --token ${{ secrets.VERCEL_TOKEN }}
+        run: vercel link --yes --token ${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
+      - name: 🚀 Desplegar en Vercel (producción)
+        working-directory: frontend
+        run: vercel deploy --prebuilt --prod --token ${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # ══════════════════════════════════════════════════════════════════════
+  # JOB 4 — Deploy Backend → Render
+  # Render auto-despliega desde GitHub. Este job fuerza un redeploy
+  # vía webhook. Configura RENDER_DEPLOY_HOOK_URL en los secrets.
+  # ══════════════════════════════════════════════════════════════════════
   deploy-backend:
     name: 🚀 Deploy Backend → Render
     runs-on: ubuntu-latest
@@ -161,10 +184,12 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - name: 🔔 Trigger deploy en Render
-        # Render auto-deploys desde GitHub. Este paso fuerza un redeploy vía webhook.
-        # Configura RENDER_DEPLOY_HOOK_URL en los secrets de GitHub.
+      - name: 🔔 Disparar deploy en Render
         run: |
-          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" \
-            -H "Content-Type: application/json" \
-            || echo "⚠️ Render deploy hook no configurado — el deploy automático de Render se encarga."
+          if [ -n "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
+            curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" \
+              -H "Content-Type: application/json" \
+              && echo "✅ Deploy de Render disparado correctamente"
+          else
+            echo "⚠️  RENDER_DEPLOY_HOOK_URL no configurado — Render hace deploy automático desde GitHub."
+          fi
