@@ -122,9 +122,14 @@ public class SecurityConfig {
         return http.build();
     }
 
+    @Autowired
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        return new DaoAuthenticationProvider(usuarioDetailsService);
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(usuarioDetailsService);
+        provider.setPasswordEncoder(passwordEncoder);
+        return provider;
     }
 
     @Bean
