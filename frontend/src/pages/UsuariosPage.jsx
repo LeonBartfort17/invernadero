@@ -17,8 +17,8 @@ export default function UsuariosPage({ idioma, usuario: usuarioActual }) {
   useEffect(() => {
     setCargando(true);
     fetch(`${API}/api/usuarios`, {
-      credentials: 'include',
-      headers: { 'Accept-Language': idioma },
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Accept-Language': idioma },
+      
     })
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
