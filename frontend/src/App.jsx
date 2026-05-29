@@ -9,6 +9,8 @@ import { detectarIdioma, guardarIdiomaManual } from './i18n/detectarIdioma';
 
 const IDIOMAS = { es, en };
 
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
 const PERMISOS = {
   ADMIN:    { puedeCrear: true,  puedeEliminar: true,  verUsuarios: true  },
   OPERADOR: { puedeCrear: true,  puedeEliminar: true,  verUsuarios: false },
@@ -28,14 +30,14 @@ function Dashboard({ usuario, t, idioma }) {
   const headers  = { 'Content-Type': 'application/json', 'Accept-Language': idioma };
 
   const cargarZonas = () => {
-    fetch('http://localhost:8080/api/zonas', { credentials: 'include', headers })
+    fetch(`${API}/api/zonas`, { credentials: 'include', headers })
       .then(r => r.json())
       .then(d => { setZonas(Array.isArray(d) ? d : []); setCargando(false); })
       .catch(() => setCargando(false));
   };
 
   const cargarInvernaderos = () => {
-    fetch('http://localhost:8080/api/invernaderos', { credentials: 'include', headers })
+    fetch(`${API}/api/invernaderos`, { credentials: 'include', headers })
       .then(r => r.json())
       .then(d => setInvernaderos(Array.isArray(d) ? d : []))
       .catch(console.error);
@@ -48,7 +50,7 @@ function Dashboard({ usuario, t, idioma }) {
     if (!nombre || !tipoCultivo || !areaTotal || !invernaderoId) {
       alert(t.camposIncompletos); return;
     }
-    fetch(`http://localhost:8080/api/zonas/${invernaderoId}`, {
+    fetch(`${API}/api/zonas/${invernaderoId}`, {
       method: 'POST', credentials: 'include', headers,
       body: JSON.stringify({ nombre, tipo_cultivo: tipoCultivo, area_total: parseFloat(areaTotal) }),
     })
@@ -61,7 +63,7 @@ function Dashboard({ usuario, t, idioma }) {
 
   const eliminarZona = (id, nombreZona) => {
     if (!confirm(t.confirmarEliminar(nombreZona))) return;
-    fetch(`http://localhost:8080/api/zonas/${id}`, { method: 'DELETE', credentials: 'include', headers })
+    fetch(`${API}/api/zonas/${id}`, { method: 'DELETE', credentials: 'include', headers })
       .then(r => r.text()).then(msg => { alert(msg); cargarZonas(); });
   };
 
@@ -177,7 +179,7 @@ function App() {
   const cambiarIdioma = (l) => { setIdioma(l); guardarIdiomaManual(l); };
 
   useEffect(() => {
-    fetch('http://localhost:8080/api/auth/me', {
+    fetch(`${API}/api/auth/me`, {
       credentials: 'include', headers: { 'Accept-Language': idioma }
     })
       .then(r => r.ok ? r.json() : null)
@@ -186,7 +188,7 @@ function App() {
   }, []);
 
   const cerrarSesion = () => {
-    fetch('http://localhost:8080/api/auth/logout', { method: 'POST', credentials: 'include' })
+    fetch(`${API}/api/auth/logout`, { method: 'POST', credentials: 'include' })
       .then(() => setUsuario(null));
   };
 
@@ -202,7 +204,6 @@ function App() {
   if (!usuario) return <Login t={t} idioma={idioma} onCambiarIdioma={cambiarIdioma} />;
 
   const permisos = PERMISOS[usuario.rol] || PERMISOS.VIEWER;
-  const SIDEBAR_W = 220; // approximate expanded width
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f4f9f4', fontFamily: "'Segoe UI', sans-serif" }}>
@@ -217,7 +218,6 @@ function App() {
         onCambiarIdioma={cambiarIdioma}
       />
 
-      {/* Main content — offset by sidebar */}
       <main style={{
         marginLeft: '220px',
         flex: 1,

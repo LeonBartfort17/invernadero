@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
 const ROL_COLORES = {
   ADMIN:    { bg: '#fee2e2', color: '#dc2626' },
   OPERADOR: { bg: '#fef3c7', color: '#d97706' },
@@ -14,7 +16,7 @@ export default function UsuariosPage({ idioma, usuario: usuarioActual }) {
 
   useEffect(() => {
     setCargando(true);
-    fetch('http://localhost:8080/api/usuarios', {
+    fetch(`${API}/api/usuarios`, {
       credentials: 'include',
       headers: { 'Accept-Language': idioma },
     })
@@ -26,7 +28,7 @@ export default function UsuariosPage({ idioma, usuario: usuarioActual }) {
         setUsuarios(Array.isArray(data) ? data : []);
         setCargando(false);
       })
-      .catch(err => {
+      .catch(() => {
         setError(idioma === 'es'
           ? 'Error al cargar usuarios. Verifica los permisos.'
           : 'Error loading users. Check permissions.');
@@ -55,7 +57,6 @@ export default function UsuariosPage({ idioma, usuario: usuarioActual }) {
   return (
     <div style={{ padding: '32px', fontFamily: "'Segoe UI', sans-serif" }}>
 
-      {/* Header */}
       <div style={{ marginBottom: '28px' }}>
         <h1 style={{ margin: 0, color: '#1a2e1a', fontSize: '24px', fontWeight: '800' }}>
           👥 {idioma === 'es' ? 'Usuarios del Sistema' : 'System Users'}
@@ -67,7 +68,6 @@ export default function UsuariosPage({ idioma, usuario: usuarioActual }) {
         </p>
       </div>
 
-      {/* Stats cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '14px', marginBottom: '28px' }}>
         {[
           { label: idioma === 'es' ? 'Total' : 'Total', value: usuarios.length, icon: '👥', bg: '#f0f7f0', color: '#1a2e1a' },
@@ -92,7 +92,6 @@ export default function UsuariosPage({ idioma, usuario: usuarioActual }) {
         ))}
       </div>
 
-      {/* Buscador */}
       <div style={{ marginBottom: '20px', position: 'relative', maxWidth: '360px' }}>
         <span style={{
           position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)',
@@ -112,7 +111,6 @@ export default function UsuariosPage({ idioma, usuario: usuarioActual }) {
         />
       </div>
 
-      {/* Estado */}
       {cargando && (
         <div style={{ textAlign: 'center', padding: '60px', color: '#6b9a6b', fontSize: '16px' }}>
           <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔄</div>
@@ -129,7 +127,6 @@ export default function UsuariosPage({ idioma, usuario: usuarioActual }) {
         </div>
       )}
 
-      {/* Tabla */}
       {!cargando && !error && (
         <>
           <div style={{ overflowX: 'auto', borderRadius: '14px', boxShadow: '0 2px 16px rgba(0,0,0,0.08)' }}>
@@ -138,15 +135,13 @@ export default function UsuariosPage({ idioma, usuario: usuarioActual }) {
                 <tr style={{ backgroundColor: '#1a2e1a' }}>
                   {['#',
                     idioma === 'es' ? 'Nombre' : 'Name',
-                    'Email',
-                    'Rol',
+                    'Email', 'Rol',
                     idioma === 'es' ? 'Registrado' : 'Registered',
                     idioma === 'es' ? 'Tú' : 'You',
                   ].map(col => (
                     <th key={col} style={{
                       padding: '13px 16px', color: '#4ade80', fontWeight: '700',
-                      fontSize: '12px', textAlign: 'left', letterSpacing: '0.5px',
-                      whiteSpace: 'nowrap',
+                      fontSize: '12px', textAlign: 'left', letterSpacing: '0.5px', whiteSpace: 'nowrap',
                     }}>
                       {col}
                     </th>
@@ -165,18 +160,12 @@ export default function UsuariosPage({ idioma, usuario: usuarioActual }) {
                     const esTu = u.email === usuarioActual?.email;
                     const rolStyle = ROL_COLORES[u.rol] || { bg: '#f1f5f9', color: '#64748b' };
                     return (
-                      <tr
-                        key={u.id || i}
-                        style={{
-                          backgroundColor: esTu ? '#f0fdf4' : i % 2 === 0 ? '#fff' : '#f9fdf9',
-                          transition: 'background 0.1s',
-                        }}
+                      <tr key={u.id || i}
+                        style={{ backgroundColor: esTu ? '#f0fdf4' : i % 2 === 0 ? '#fff' : '#f9fdf9' }}
                         onMouseEnter={e => !esTu && (e.currentTarget.style.backgroundColor = '#f0f7f0')}
                         onMouseLeave={e => !esTu && (e.currentTarget.style.backgroundColor = i % 2 === 0 ? '#fff' : '#f9fdf9')}
                       >
-                        <td style={{ padding: '13px 16px', color: '#9ab89a', fontSize: '12px', fontWeight: '600' }}>
-                          {i + 1}
-                        </td>
+                        <td style={{ padding: '13px 16px', color: '#9ab89a', fontSize: '12px', fontWeight: '600' }}>{i + 1}</td>
                         <td style={{ padding: '13px 16px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <div style={{
@@ -187,32 +176,24 @@ export default function UsuariosPage({ idioma, usuario: usuarioActual }) {
                             }}>
                               {u.nombre?.charAt(0)?.toUpperCase() || '?'}
                             </div>
-                            <span style={{ fontWeight: '700', color: '#1a2e1a', fontSize: '14px' }}>
-                              {u.nombre}
-                            </span>
+                            <span style={{ fontWeight: '700', color: '#1a2e1a', fontSize: '14px' }}>{u.nombre}</span>
                           </div>
                         </td>
-                        <td style={{ padding: '13px 16px', color: '#4a6a4a', fontSize: '13px' }}>
-                          {u.email}
-                        </td>
+                        <td style={{ padding: '13px 16px', color: '#4a6a4a', fontSize: '13px' }}>{u.email}</td>
                         <td style={{ padding: '13px 16px' }}>
                           <span style={{
                             backgroundColor: rolStyle.bg, color: rolStyle.color,
-                            padding: '3px 12px', borderRadius: '20px',
-                            fontWeight: '800', fontSize: '11px',
+                            padding: '3px 12px', borderRadius: '20px', fontWeight: '800', fontSize: '11px',
                           }}>
                             {u.rol}
                           </span>
                         </td>
-                        <td style={{ padding: '13px 16px', color: '#6b9a6b', fontSize: '12px' }}>
-                          {formatFecha(u.createdAt)}
-                        </td>
+                        <td style={{ padding: '13px 16px', color: '#6b9a6b', fontSize: '12px' }}>{formatFecha(u.createdAt)}</td>
                         <td style={{ padding: '13px 16px', textAlign: 'center' }}>
                           {esTu && (
                             <span style={{
                               backgroundColor: '#dcfce7', color: '#16a34a',
-                              padding: '2px 10px', borderRadius: '20px',
-                              fontWeight: '800', fontSize: '11px',
+                              padding: '2px 10px', borderRadius: '20px', fontWeight: '800', fontSize: '11px',
                             }}>
                               ← {idioma === 'es' ? 'Tú' : 'You'}
                             </span>

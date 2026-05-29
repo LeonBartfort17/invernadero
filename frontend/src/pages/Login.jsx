@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
 function Login({ t, idioma, onCambiarIdioma }) {
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
@@ -16,14 +18,13 @@ function Login({ t, idioma, onCambiarIdioma }) {
       formData.append('username', email);
       formData.append('password', password);
 
-      const res = await fetch('http://localhost:8080/api/auth/login', {
+      const res = await fetch(`${API}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formData,
         credentials: 'include',
       });
 
-      // El backend responde JSON (no redirect) para evitar errores de CORS
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.success) {
@@ -39,10 +40,9 @@ function Login({ t, idioma, onCambiarIdioma }) {
   };
 
   const loginConGoogle = () => {
-    window.location.href = 'http://localhost:8080/oauth2/authorization/google';
+    window.location.href = `${API}/oauth2/authorization/google`;
   };
 
-  // Estilos reutilizables
   const inputStyle = {
     width: '100%', padding: '10px', borderRadius: '8px',
     border: '1px solid #ccc', boxSizing: 'border-box',
@@ -65,7 +65,6 @@ function Login({ t, idioma, onCambiarIdioma }) {
         boxShadow: '0 8px 24px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px'
       }}>
 
-        {/* ── Selector de idioma ── */}
         <div style={{ textAlign: 'right', marginBottom: '16px' }}>
           <span style={{ marginRight: '8px', fontSize: '13px', color: '#7f8c8d' }}>
             🌐 {t.idioma}:
@@ -82,7 +81,6 @@ function Login({ t, idioma, onCambiarIdioma }) {
           ))}
         </div>
 
-        {/* ── Logo y título ── */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div style={{ fontSize: '48px' }}>🌿</div>
           <h2 style={{ color: '#2c3e50', margin: '8px 0 4px', fontSize: '22px' }}>
@@ -93,7 +91,6 @@ function Login({ t, idioma, onCambiarIdioma }) {
           </p>
         </div>
 
-        {/* ── Error ── */}
         {error && (
           <div style={{
             backgroundColor: '#fde8e8', color: '#c0392b', padding: '10px',
@@ -103,7 +100,6 @@ function Login({ t, idioma, onCambiarIdioma }) {
           </div>
         )}
 
-        {/* ── Formulario ── */}
         <form onSubmit={manejarLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div>
             <label style={labelStyle}>{t.loginEmail}</label>
@@ -135,7 +131,6 @@ function Login({ t, idioma, onCambiarIdioma }) {
           </button>
         </form>
 
-        {/* ── Separador ── */}
         <div style={{ display: 'flex', alignItems: 'center', margin: '20px 0', gap: '10px' }}>
           <hr style={{ flex: 1, border: 'none', borderTop: '1px solid #e2e8f0' }} />
           <span style={{ color: '#a0aec0', fontSize: '13px', whiteSpace: 'nowrap' }}>
@@ -144,7 +139,6 @@ function Login({ t, idioma, onCambiarIdioma }) {
           <hr style={{ flex: 1, border: 'none', borderTop: '1px solid #e2e8f0' }} />
         </div>
 
-        {/* ── Botón Google ── */}
         <button onClick={loginConGoogle} style={{
           width: '100%', padding: '12px', borderRadius: '8px',
           border: '1px solid #ddd', backgroundColor: '#fff',
@@ -161,7 +155,6 @@ function Login({ t, idioma, onCambiarIdioma }) {
           {t.loginGoogle}
         </button>
 
-        {/* ── Link registro ── */}
         <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '13px', color: '#7f8c8d' }}>
           {t.loginRegistro}{' '}
           <a href="/registro" style={{ color: '#2ecc71', fontWeight: 'bold', textDecoration: 'none' }}>
